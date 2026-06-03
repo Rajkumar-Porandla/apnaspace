@@ -24,7 +24,8 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     if (user) {
       // Connect to the socket server
-      socketRef.current = io('http://localhost:5001');
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001';
+      socketRef.current = io(socketUrl);
       console.log('Socket.io connected on frontend.');
 
       // Listen to personal notification events
