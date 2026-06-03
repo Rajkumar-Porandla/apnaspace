@@ -111,6 +111,7 @@ const propertyImages = [
 ];
 
 const userProfiles = [
+  { name: 'Rahul Sharma', email: 'rahul@buyer.com', role: 'buyer' },
   { name: 'Ayesha Reddy', email: 'ayesha@buyer.com', role: 'buyer' },
   { name: 'Rohan Kapoor', email: 'rohan@buyer.com', role: 'buyer' },
   { name: 'Nisha Sharma', email: 'nisha@buyer.com', role: 'buyer' },
@@ -131,6 +132,7 @@ const userProfiles = [
   { name: 'Aman Chopra', email: 'aman@agent.com', role: 'agent', license: 'RERA-MUM-8890-2025' },
   { name: 'Meera Nambiar', email: 'meera@agent.com', role: 'agent', license: 'RERA-PNE-7722-2026' },
   { name: 'Devika Rao', email: 'devika@agent.com', role: 'agent', license: 'RERA-DEL-4501-2026' },
+  { name: 'Priya Patel', email: 'priya@seller.com', role: 'seller' },
   { name: 'Anjali Jain', email: 'anjali@seller.com', role: 'seller' },
   { name: 'Suresh Kulkarni', email: 'suresh@seller.com', role: 'seller' },
   { name: 'Deepa Nair', email: 'deepa@seller.com', role: 'seller' },

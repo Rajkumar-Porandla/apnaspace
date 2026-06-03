@@ -54,8 +54,27 @@ export default function Login({ onLoginSuccess }) {
     setLoading(true);
     // Generate simulated Google OAuth profile details
     const randomGoogleProfiles = [
-      { googleId: 'g10293847', email: 'rahul.google@gmail.com', name: 'Rahul (Google)', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80' },
-      { googleId: 'g98472938', email: 'priya.google@gmail.com', name: 'Priya (Google)', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80' }
+      {
+        googleId: 'g10293847',
+        email: 'rahul.google@gmail.com',
+        name: 'Rahul Sharma',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80',
+        role: 'buyer'
+      },
+      {
+        googleId: 'g98472938',
+        email: 'priya.google@gmail.com',
+        name: 'Priya Patel',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80',
+        role: 'seller'
+      },
+      {
+        googleId: 'g11023648',
+        email: 'vikram.google@gmail.com',
+        name: 'Vikram Mehta',
+        avatar: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&w=150&h=150&q=80',
+        role: 'agent'
+      }
     ];
     
     const randomProfile = randomGoogleProfiles[Math.floor(Math.random() * randomGoogleProfiles.length)];

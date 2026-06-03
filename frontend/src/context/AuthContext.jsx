@@ -2,7 +2,10 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 
 // Set default API base URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+  ? 'http://localhost:5001/api'
+  : 'https://apnaspace.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 axios.defaults.baseURL = API_URL;
 
 const AuthContext = createContext(null);

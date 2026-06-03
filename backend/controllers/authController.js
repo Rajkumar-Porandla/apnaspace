@@ -99,7 +99,7 @@ exports.login = async (req, res, next) => {
 // @access  Public
 exports.googleLogin = async (req, res, next) => {
   try {
-    const { googleId, email, name, avatar } = req.body;
+    const { googleId, email, name, avatar, role } = req.body;
 
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email from Google payload is required.' });
@@ -111,16 +111,21 @@ exports.googleLogin = async (req, res, next) => {
       // User exists, update googleId and avatar if not present
       if (!user.googleId) {
         user.googleId = googleId;
-        await user.save();
       }
+      if (avatar && user.avatar !== avatar) {
+        user.avatar = avatar;
+      }
+      await user.save();
     } else {
-      // Create new user (buyer by default via Google sign-in)
+      // Create new user via Google sign-in
       user = await User.create({
         name: name || 'Google User',
         email,
         googleId,
         avatar: avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&h=150&q=80',
-        role: 'buyer'
+        role: role || 'buyer',
+        agentLicense: role === 'agent' ? 'RERA-GOOGLE-2026' : '',
+        isVerifiedAgent: role === 'agent' ? false : undefined
       });
     }
 
