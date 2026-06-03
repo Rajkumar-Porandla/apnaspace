@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --transition-speed: 0.3s;
+    --color-warm-ivory: #F0ECE3;
+    --color-soft-white: #FFFFFF;
+    --color-sand-beige: #F4F1EA;
+    --color-stone-gray: #78716C;
+    --color-charcoal: #1C1917;
+    --color-graphite: #2E2A25;
+    --color-forest-green: #1B3B2B;
+    --color-gold-accent: #C5A880;
+  }
+
+  body {
+    background-color: var(--color-warm-ivory);
+    color: var(--color-charcoal);
+    @apply transition-colors duration-300 min-h-screen;
+    font-family: 'Outfit', 'Inter', sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  body.dark {
+    background-color: #12110E;
+    color: #FAF9F6;
+  }
+
+  h1, h2, h3, h4, h5, h6, .serif-font {
+    font-family: 'Playfair Display', 'Instrument Serif', Georgia, serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Premium Editorial Card Style */
+  .glass-card {
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(197, 168, 128, 0.15);
+    @apply backdrop-blur-md shadow-[0_8px_30px_rgba(28,25,23,0.02)] rounded-3xl transition-all duration-300;
+  }
+  
+  .dark .glass-card {
+    background-color: rgba(30, 28, 25, 0.75);
+    border: 1px solid rgba(197, 168, 128, 0.1);
+    @apply shadow-none;
+  }
+
+  .glass-card:hover {
+    background-color: #FFFFFF;
+    border-color: rgba(197, 168, 128, 0.45);
+    @apply shadow-[0_20px_40px_rgba(28,25,23,0.06)] translate-y-[-4px];
+  }
+  
+  .dark .glass-card:hover {
+    background-color: rgba(46, 42, 37, 0.9);
+    border-color: rgba(197, 168, 128, 0.2);
+  }
+
+  .glass-panel {
+    background-color: rgba(244, 241, 234, 0.5);
+    border: 1px solid rgba(197, 168, 128, 0.1);
+    @apply backdrop-blur-lg shadow-sm rounded-3xl;
+  }
+  
+  .dark .glass-panel {
+    background-color: rgba(30, 28, 25, 0.4);
+    border: 1px solid rgba(197, 168, 128, 0.05);
+  }
+
+  /* Custom Premium Input Fields */
+  .premium-input {
+    background-color: rgba(255, 255, 255, 0.6);
+    border: 1px solid #D6D1C4;
+    color: var(--color-charcoal);
+    @apply w-full px-4 py-3 backdrop-blur-sm rounded-xl focus:outline-none focus:ring-1 focus:ring-[#C5A880] focus:border-[#C5A880] transition-all duration-200 text-sm;
+  }
+  
+  .dark .premium-input {
+    background-color: rgba(30, 28, 25, 0.5);
+    border: 1px solid #44403C;
+    color: #FAF9F6;
+  }
+
+  /* Custom Action Buttons */
+  .btn-primary {
+    background-color: var(--color-charcoal);
+    border: 1px solid var(--color-charcoal);
+    color: #FAF9F6;
+    @apply px-5 py-2.5 font-medium rounded-xl shadow-sm hover:bg-[#2E2A25] hover:border-[#2E2A25] transition-all duration-200 transform hover:scale-[1.01] active:scale-[0.99] text-sm flex items-center justify-center gap-2;
+  }
+  
+  .dark .btn-primary {
+    background-color: #FAF9F6;
+    border: 1px solid #FAF9F6;
+    color: #12110E;
+    @apply hover:bg-[#EFECE6] hover:border-[#EFECE6];
+  }
+
+  .btn-secondary {
+    background-color: var(--color-sand-beige);
+    border: 1px solid #E5E0D5;
+    color: var(--color-charcoal);
+    @apply px-5 py-2.5 font-medium rounded-xl hover:bg-[#EAE5D9] transition-all duration-200 text-sm flex items-center justify-center gap-2;
+  }
+  
+  .dark .btn-secondary {
+    background-color: #2E2A25;
+    border: 1px solid #3E3830;
+    color: #FAF9F6;
+    @apply hover:bg-[#3E3830];
+  }
+
+  .btn-danger {
+    @apply px-5 py-2.5 bg-red-800 border border-red-900 hover:bg-red-700 text-white font-medium rounded-xl shadow-sm transition-all duration-200 text-sm flex items-center justify-center gap-2;
+  }
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-warm-ivory);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background-color: #12110E;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #D6D1C4;
+  @apply rounded-full hover:bg-[#C5A880];
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #3E3830;
+  @apply rounded-full hover:bg-[#C5A880];
+}
+
+/* Glassy Scrollbar for Chat components */
+.chat-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #C5A880;
+  @apply rounded-full;
+}
+
+/* Starting style for animated transitions */
+@starting-style {
+  .popover-reveal {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
