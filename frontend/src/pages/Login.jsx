@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, User, FileText, Sparkles, KeyRound } from 'lucide-react';
+import { Mail, Lock, User, FileText, Sparkles, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Login({ onLoginSuccess }) {
@@ -14,6 +14,7 @@ export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agentLicense, setAgentLicense] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Password Reset states
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -198,7 +199,7 @@ export default function Login({ onLoginSuccess }) {
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">New Password</label>
                   <div className="relative">
                     <input 
-                      type="password" 
+                      type={showPassword ? 'text' : 'password'} 
                       placeholder="Minimum 6 characters..."
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -206,6 +207,14 @@ export default function Login({ onLoginSuccess }) {
                       className="premium-input pl-10"
                     />
                     <Lock className="absolute left-3 top-3.5 text-slate-400" size={14} />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
               </>
@@ -278,7 +287,7 @@ export default function Login({ onLoginSuccess }) {
               </div>
               <div className="relative">
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'} 
                   placeholder="Enter password..."
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -286,6 +295,14 @@ export default function Login({ onLoginSuccess }) {
                   className="premium-input pl-10"
                 />
                 <Lock className="absolute left-3 top-3.5 text-slate-400" size={14} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
