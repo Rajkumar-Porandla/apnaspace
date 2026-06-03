@@ -4,7 +4,7 @@ import axios from 'axios';
 // Set default API base URL
 const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost'
   ? 'http://localhost:5001/api'
-  : 'https://apnaspace.onrender.com/api';
+  : '/api';
 const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 axios.defaults.baseURL = API_URL;
 
