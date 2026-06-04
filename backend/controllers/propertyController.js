@@ -31,22 +31,43 @@ exports.getProperties = async (req, res, next) => {
 
     console.log(`[DEBUG] getProperties request received. Query parameters:`, req.query);
 
+    // Debug Incoming filters
+    console.log(`[DEBUG] Incoming filters:`, {
+      city, state, propertyType, listingType, minPrice, maxPrice, bedrooms, bathrooms, minArea, maxArea, q, status, seller, agent
+    });
+
     // Building query
     const queryObj = {};
 
     // Apply status filter: if status is provided, filter by it.
-    // If not, and we are not searching for a specific seller/agent, default to 'available'.
-    // If we are searching for a specific seller/agent, return all their listings.
+    // Otherwise do not filter by status to allow newly added seller properties or pending items.
     if (status) {
       queryObj.status = status;
-    } else if (!seller && !agent) {
-      queryObj.status = 'available';
     }
 
-    if (city) queryObj.city = city.toLowerCase().trim();
-    if (state) queryObj.state = state.toLowerCase().trim();
-    if (propertyType) queryObj.propertyType = propertyType;
-    if (listingType) queryObj.listingType = listingType;
+    if (city) {
+      queryObj.city = { $regex: city.toLowerCase().trim(), $options: 'i' };
+    }
+    if (state) {
+      queryObj.state = { $regex: state.toLowerCase().trim(), $options: 'i' };
+    }
+    
+    // Normalize propertyType (case-insensitive, partial matching)
+    if (propertyType) {
+      queryObj.propertyType = { $regex: propertyType.toLowerCase().trim(), $options: 'i' };
+    }
+    
+    // Normalize listingType (e.g. "rent", "For Rent", "for-rent" mapped to "rent"; "sale", "For Sale" mapped to "sale")
+    if (listingType) {
+      let normalizedListingType = listingType.toLowerCase().trim();
+      if (normalizedListingType.includes('rent')) {
+        normalizedListingType = 'rent';
+      } else if (normalizedListingType.includes('sale') || normalizedListingType.includes('buy')) {
+        normalizedListingType = 'sale';
+      }
+      queryObj.listingType = normalizedListingType;
+    }
+
     if (seller) queryObj.seller = seller;
     if (agent) queryObj.agent = agent;
     
@@ -85,6 +106,8 @@ exports.getProperties = async (req, res, next) => {
       }
     }
 
+    console.log(`[DEBUG] Generated MongoDB query:`, JSON.stringify(queryObj, null, 2));
+
     console.log(`[DEBUG] Final MongoDB Query object:`, JSON.stringify(queryObj));
 
     // Sorting
@@ -122,7 +145,7 @@ exports.getProperties = async (req, res, next) => {
     // Total count for pagination metadata
     const total = await Property.countDocuments(queryObj);
 
-    console.log(`[DEBUG] Fetch results. Total matching: ${total}, Retreived on this page: ${properties.length}`);
+    console.log(`[DEBUG] Documents found: ${total}, Returned results: ${properties.length}`);
 
     res.status(200).json({
       success: true,
