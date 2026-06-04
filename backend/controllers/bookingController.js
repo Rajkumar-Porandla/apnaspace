@@ -8,6 +8,11 @@ const Notification = require('../models/Notification');
 exports.createBooking = async (req, res, next) => {
   try {
     const { propertyId, visitDate, visitTime, notes } = req.body;
+    
+    // Validate date format
+    if (!visitDate || isNaN(Date.parse(visitDate))) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid visit date.' });
+    }
 
     // Check if property exists
     const property = await Property.findById(propertyId);

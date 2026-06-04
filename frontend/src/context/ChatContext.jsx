@@ -164,7 +164,9 @@ export const ChatProvider = ({ children }) => {
               senderId: user._id || user.id,
               receiverId: activeChat._id || activeChat.id,
               content: newMsg.content,
-              image: newMsg.image
+              image: newMsg.image,
+              isAlreadySaved: true,
+              messageId: newMsg._id
             });
           }
           fetchConversations();

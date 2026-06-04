@@ -73,15 +73,30 @@ if (!process.env.VERCEL) {
     });
 
     socket.on('send_message', async (data) => {
-      const { chatId, senderId, receiverId, content, image } = data;
+      const { chatId, senderId, receiverId, content, image, isAlreadySaved, messageId } = data;
       try {
-        const message = await Message.create({
-          chatId,
-          sender: senderId,
-          receiver: receiverId,
-          content: content || 'Sent an image',
-          image: image || null,
-        });
+        let message;
+        if (isAlreadySaved) {
+          // If already saved in HTTP upload, construct the message payload from socket data
+          message = {
+            _id: messageId,
+            chatId,
+            sender: senderId,
+            receiver: receiverId,
+            content: content || 'Sent an image',
+            image: image || null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+        } else {
+          message = await Message.create({
+            chatId,
+            sender: senderId,
+            receiver: receiverId,
+            content: content || 'Sent an image',
+            image: image || null,
+          });
+        }
         io.to(chatId).emit('receive_message', message);
         io.emit(`notification_${receiverId}`, {
           type: 'chat_message',
@@ -122,7 +137,7 @@ if (!process.env.VERCEL) {
     });
   });
 
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 5001;
   server.listen(PORT, () => {
     console.log(`ApnaSpace Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
   });

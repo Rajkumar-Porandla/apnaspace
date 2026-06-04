@@ -62,6 +62,11 @@ export default function AiAssistant({ onViewDetails }) {
         
         // Populate matching properties side grid
         setChatProperties(res.data.properties || []);
+      } else {
+        setMessages(prev => [...prev, { 
+          sender: 'bot', 
+          text: res.data.message || 'Sorry, I encountered an issue processing that request. Please try again.' 
+        }]);
       }
     } catch (err) {
       setMessages(prev => [...prev, { 
@@ -224,8 +229,12 @@ export default function AiAssistant({ onViewDetails }) {
                   className="glass-card p-3 rounded-2xl flex gap-3 cursor-pointer hover:bg-white/80"
                 >
                   <img 
-                    src={p.images[0]} 
+                    src={p.images?.[0] || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80'} 
                     alt="" 
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80';
+                    }}
                     className="w-20 h-16 rounded-xl object-cover flex-shrink-0"
                   />
                   <div className="flex-grow min-w-0">

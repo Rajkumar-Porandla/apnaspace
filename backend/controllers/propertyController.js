@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const Property = require('../models/Property');
 const Review = require('../models/Review');
 const User = require('../models/User');
