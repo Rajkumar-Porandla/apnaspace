@@ -17,6 +17,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
   const [activeTab, setActiveTab] = useState('');
   const [bookings, setBookings] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [myProperties, setMyProperties] = useState([]);
   const [visitsSubTab, setVisitsSubTab] = useState('pipeline');
   const [reschedulingVisitId, setReschedulingVisitId] = useState(null);
   const [newVisitDate, setNewVisitDate] = useState('');
@@ -638,6 +639,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
     }
   };
 
+  console.log("[DEBUG] Dashboard rendering. User:", user, "ActiveTab:", activeTab, "Bookings:", bookings, "Visits:", visits, "MyProperties:", myProperties);
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       

@@ -9,6 +9,7 @@ import Chat from './pages/Chat';
 import Comparison from './pages/Comparison';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function MainApp() {
   const { user } = useAuth();
@@ -51,10 +52,12 @@ function MainApp() {
         )}
 
         {currentTab === 'dashboard' && (
-          <Dashboard 
-            onViewProperty={handleViewDetails} 
-            setCurrentTab={setCurrentTab}
-          />
+          <ErrorBoundary>
+            <Dashboard 
+              onViewProperty={handleViewDetails} 
+              setCurrentTab={setCurrentTab}
+            />
+          </ErrorBoundary>
         )}
 
         {currentTab === 'comparison' && (
