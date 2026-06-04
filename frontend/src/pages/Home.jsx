@@ -120,6 +120,7 @@ export default function Home({ onViewDetails, compareList, setCompareList }) {
       if (maxPrice) query += `&maxPrice=${maxPrice}`;
       if (bedrooms) query += `&bedrooms=${bedrooms}`;
       if (bathrooms) query += `&bathrooms=${bathrooms}`;
+      if (listingType) query += `&listingType=${listingType}`;
 
       const res = await axios.get(query);
       if (res.data.success) {
