@@ -5,7 +5,7 @@ import { useChat } from '../context/ChatContext';
 import { 
   Building, Calendar, UserCheck, ShieldAlert, Plus, Check, X, 
   Sparkles, TrendingUp, BarChart3, Users, DollarSign, Edit, Trash2,
-  FileText, Share2, Compass, BadgeInfo
+  FileText, Share2, Compass, BadgeInfo, ShieldCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
