@@ -1,6 +1,8 @@
 const { aiClient, modelName, isMockAI } = require('../config/aiConfig');
 const localities = require('../config/localities');
 const Property = require('../models/Property');
+const LocationIntelligence = require('../models/LocationIntelligence');
+
 
 
 // Helper to find matching locality profiles
@@ -650,3 +652,116 @@ exports.answerLocalityQuestion = async ({ property, message }) => {
   }
   return `This property in ${property.city.toUpperCase()} is located in a well-established area. It offers immediate access to local schools, hospitals, and markets. The locality is safe, has a stable water/power supply, and boasts good connectivity to commercial hubs.`;
 };
+
+exports.getLocationIntelligence = async (city, address) => {
+  const normalizedCity = (city || '').toLowerCase().trim();
+  const normalizedAddress = (address || '').toLowerCase().trim();
+
+  let matchingLocalityKey = null;
+  const cityIntel = await LocationIntelligence.findOne({ city: normalizedCity });
+  
+  if (cityIntel && cityIntel.localities) {
+    for (const key of cityIntel.localities.keys()) {
+      if (normalizedAddress.includes(key) || key.includes(normalizedAddress)) {
+        matchingLocalityKey = key;
+        break;
+      }
+    }
+  }
+
+  if (matchingLocalityKey && cityIntel) {
+    const data = cityIntel.localities.get(matchingLocalityKey);
+    return {
+      success: true,
+      city: normalizedCity,
+      locality: matchingLocalityKey,
+      data
+    };
+  }
+
+  // Generate and cache dynamic fallback profile if not found
+  const addressParts = address.split(',');
+  const guessedLocality = addressParts.length > 1 ? addressParts[addressParts.length - 2].trim() : 'Premium Locality';
+  const localityKey = guessedLocality.toLowerCase().trim();
+
+  const mockScore = {
+    overall: 80 + Math.round(Math.random() * 15),
+    connectivity: 80 + Math.round(Math.random() * 15),
+    safety: 75 + Math.round(Math.random() * 20),
+    education: 80 + Math.round(Math.random() * 15),
+    healthcare: 75 + Math.round(Math.random() * 20),
+    lifestyle: 80 + Math.round(Math.random() * 15),
+    publicTransport: 70 + Math.round(Math.random() * 25),
+    employmentOpportunities: 75 + Math.round(Math.random() * 20)
+  };
+
+  const nearbyPlaces = [
+    { category: 'school', name: `${guessedLocality} High School`, distance: '1.2 km', travelTime: '4 mins' },
+    { category: 'college', name: `State College of Management`, distance: '2.8 km', travelTime: '9 mins' },
+    { category: 'hospital', name: `City Care Multi-Specialty Hospital`, distance: '1.5 km', travelTime: '5 mins' },
+    { category: 'pharmacy', name: `MedPlus Pharmacy`, distance: '0.3 km', travelTime: '1 min' },
+    { category: 'metro', name: `${guessedLocality} Metro Station`, distance: '1.8 km', travelTime: '6 mins' },
+    { category: 'bus', name: `Local Main Road Bus Stop`, distance: '0.4 km', travelTime: '2 mins' },
+    { category: 'railway', name: `Central Junction Station`, distance: '8.2 km', travelTime: '20 mins' },
+    { category: 'airport', name: `International Airport`, distance: '28.0 km', travelTime: '35 mins' },
+    { category: 'mall', name: `Central Shopping Square`, distance: '2.1 km', travelTime: '7 mins' },
+    { category: 'supermarket', name: `More Supermarket`, distance: '0.6 km', travelTime: '2 mins' },
+    { category: 'restaurant', name: `The Food Court Bistro`, distance: '0.4 km', travelTime: '1 min' },
+    { category: 'park', name: `Community Landscape Park`, distance: '0.9 km', travelTime: '3 mins' },
+    { category: 'gym', name: `Gold's Fitness Center`, distance: '0.5 km', travelTime: '2 mins' },
+    { category: 'itpark', name: `Tech Business Park`, distance: '3.2 km', travelTime: '10 mins' },
+    { category: 'bank', name: `HDFC Bank ATM & Branch`, distance: '0.3 km', travelTime: '1 min' }
+  ];
+
+  const commuteTimes = {
+    office: { driving: '10 mins', walking: '35 mins', transit: '15 mins' },
+    college: { driving: '12 mins', walking: '50 mins', transit: '18 mins' },
+    airport: { driving: '35 mins', walking: '320 mins', transit: '48 mins' },
+    railway: { driving: '22 mins', walking: '100 mins', transit: '30 mins' },
+    cityCenter: { driving: '18 mins', walking: '110 mins', transit: '25 mins' }
+  };
+
+  const investment = {
+    rentalYield: parseFloat((3.5 + Math.random() * 2).toFixed(1)),
+    appreciationPotential: Math.random() > 0.5 ? 'High' : 'Moderate',
+    demandScore: 75 + Math.round(Math.random() * 20),
+    investmentScore: parseFloat((7.0 + Math.random() * 2.5).toFixed(1)),
+    reasons: ['Fast-growing residential sector', 'High proximity to highway corridors', 'Excellent micro-infrastructure developments']
+  };
+
+  const safetyIndex = {
+    safetyScore: 78 + Math.round(Math.random() * 18),
+    familyFriendlyScore: 80 + Math.round(Math.random() * 15),
+    nightSafetyScore: 75 + Math.round(Math.random() * 20)
+  };
+
+  const generatedLocalityData = {
+    name: guessedLocality,
+    locationScore: mockScore,
+    nearbyPlaces,
+    commuteTimes,
+    neighborhoodInsights: `${guessedLocality} in ${city} is a fast-expanding residential neighborhood with stable rental demand, high utility connectivity, top schools, and access to local transport nodes.`,
+    investment,
+    safetyIndex,
+    aiRecommendations: `Look at adjacent sectors for better deal potentials or central areas for higher commercial densities.`
+  };
+
+  // Cache dynamically
+  let dbRecord = cityIntel;
+  if (!dbRecord) {
+    dbRecord = new LocationIntelligence({
+      city: normalizedCity,
+      localities: {}
+    });
+  }
+  dbRecord.localities.set(localityKey, generatedLocalityData);
+  await dbRecord.save();
+
+  return {
+    success: true,
+    city: normalizedCity,
+    locality: localityKey,
+    data: generatedLocalityData
+  };
+};
+

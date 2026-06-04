@@ -222,3 +222,23 @@ exports.getAvailableCities = async (req, res, next) => {
   }
 };
 
+// @desc    Get location intelligence details for a property
+// @route   GET /api/ai/location-intelligence
+// @access  Public
+exports.getPropertyLocationIntelligence = async (req, res, next) => {
+  try {
+    const { propertyId } = req.query;
+    if (!propertyId) {
+      return res.status(400).json({ success: false, message: 'Property ID is required.' });
+    }
+    const property = await Property.findById(propertyId);
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found.' });
+    }
+    const intel = await aiService.getLocationIntelligence(property.city, property.address);
+    res.status(200).json(intel);
+  } catch (error) {
+    next(error);
+  }
+};
+

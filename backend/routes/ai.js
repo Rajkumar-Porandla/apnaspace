@@ -5,6 +5,7 @@ const {
   getMarketInsights,
   chatLocality,
   getAvailableCities,
+  getPropertyLocationIntelligence,
 } = require('../controllers/aiController');
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.post('/chat', chatAssistant);
 router.post('/locality-chat', chatLocality);
 router.get('/market-insights', getMarketInsights);
 router.get('/cities', getAvailableCities);
+router.get('/location-intelligence', getPropertyLocationIntelligence);
 
 // Protected tool (restricted to Sellers/Agents/Admins)
 router.post(
