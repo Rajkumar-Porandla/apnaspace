@@ -1,5 +1,7 @@
 const { aiClient, modelName, isMockAI } = require('../config/aiConfig');
 const localities = require('../config/localities');
+const Property = require('../models/Property');
+
 
 // Helper to find matching locality profiles
 const getLocalityProfile = (locationStr) => {
@@ -352,65 +354,111 @@ const generatePropertyDescriptionFallback = ({ propertyType, location, amenities
 exports.generateMarketInsights = async (city) => {
   const normalizedCity = (city || '').toLowerCase().trim();
 
-  // Seed static market statistics database for local lookup
-  const dbInsights = {
-    delhi: {
-      averagePrice: '₹12,500 per sq ft',
-      priceChange: '+5.4% YoY',
-      demandLevel: 'High',
-      topNeighborhoods: ['Dwarka', 'South Ext', 'Vasant Kunj', 'Saket'],
-      chartData: [
-        { label: 'Q1 2025', price: 11800 },
-        { label: 'Q2 2025', price: 12000 },
-        { label: 'Q3 2025', price: 12150 },
-        { label: 'Q4 2025', price: 12300 },
-        { label: 'Q1 2026', price: 12500 }
-      ],
-      investmentSuggestions: 'High growth in Dwarka due to metro extension and proximity to airport. South Delhi remains stable and premium.'
-    },
-    mumbai: {
-      averagePrice: '₹22,000 per sq ft',
-      priceChange: '+8.2% YoY',
-      demandLevel: 'Very High',
-      topNeighborhoods: ['Andheri West', 'Bandra', 'Goregaon', 'Thane'],
-      chartData: [
-        { label: 'Q1 2025', price: 20300 },
-        { label: 'Q2 2025', price: 20800 },
-        { label: 'Q3 2025', price: 21100 },
-        { label: 'Q4 2025', price: 21600 },
-        { label: 'Q1 2026', price: 22000 }
-      ],
-      investmentSuggestions: 'Strong demand in Bandra-Kurla complex peripheries. Thane offers high rental yield potential for mid-income developments.'
-    },
-    bangalore: {
-      averagePrice: '₹8,900 per sq ft',
-      priceChange: '+6.8% YoY',
-      demandLevel: 'High',
-      topNeighborhoods: ['Whitefield', 'Electronic City', 'Indiranagar', 'HSR Layout'],
-      chartData: [
-        { label: 'Q1 2025', price: 8300 },
-        { label: 'Q2 2025', price: 8500 },
-        { label: 'Q3 2025', price: 8650 },
-        { label: 'Q4 2025', price: 8750 },
-        { label: 'Q1 2026', price: 8900 }
-      ],
-      investmentSuggestions: 'IT corridors such as Whitefield and Outer Ring Road continue to witness steady capital appreciation. HSR Layout is premium for co-living.'
-    }
-  };
+  // 1. Fetch properties count for listings
+  const totalListings = await Property.countDocuments({ city: normalizedCity });
 
-  const selectedData = dbInsights[normalizedCity] || {
-    averagePrice: '₹7,500 per sq ft',
-    priceChange: '+3.2% YoY',
-    demandLevel: 'Moderate',
-    topNeighborhoods: ['Downtown', 'Greenwood', 'Tech Park'],
-    chartData: [
-      { label: 'Q1 2025', price: 7200 },
-      { label: 'Q2 2025', price: 7300 },
-      { label: 'Q3 2025', price: 7350 },
-      { label: 'Q4 2025', price: 7420 },
-      { label: 'Q1 2026', price: 7500 }
-    ],
-    investmentSuggestions: 'Steady, non-volatile growth in suburban developments. Focus on rental yield properties near employment centers.'
+  // 2. Fetch total viewsCount across properties in the city
+  const totalViewsRes = await Property.aggregate([
+    { $match: { city: normalizedCity } },
+    { $group: { _id: null, total: { $sum: '$viewsCount' } } }
+  ]);
+  const totalViews = totalViewsRes[0]?.total || 0;
+
+  // 3. Group by propertyType to get popular types
+  const popTypes = await Property.aggregate([
+    { $match: { city: normalizedCity } },
+    { $group: { _id: '$propertyType', count: { $sum: 1 } } },
+    { $sort: { count: -1 } }
+  ]);
+  const popularPropertyTypes = popTypes.map(pt => pt._id);
+
+  // 4. Heuristic search to extract neighborhoods from addresses/titles
+  const propertiesInCity = await Property.find({ city: normalizedCity }).limit(50).select('address title');
+  const detectedAreas = new Set();
+  const knownAreas = [
+    'gachibowli', 'hitech city', 'kondapur', 'madhapur', 'kukatpally', 'financial district',
+    'jubilee hills', 'banjara hills', 'manikonda', 'narsingi',
+    'dwarka', 'saket', 'gurugram', 'rohini', 'green park',
+    'bandra', 'powai', 'andheri', 'juhu', 'lower parel',
+    'koramangala', 'whitefield', 'indiranagar', 'hebbal', 'yelahanka',
+    'koregaon park', 'baner', 'kharadi', 'wakad', 'aundh'
+  ];
+  for (const p of propertiesInCity) {
+    const text = `${p.address} ${p.title}`.toLowerCase();
+    for (const area of knownAreas) {
+      if (text.includes(area)) {
+        const formatted = area.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        detectedAreas.add(formatted);
+      }
+    }
+  }
+  const topNeighborhoods = detectedAreas.size > 0 
+    ? Array.from(detectedAreas).slice(0, 4) 
+    : ['Premium Suburbs', 'Commercial Corridors', 'Downtown'];
+
+  // 5. Calculate average price per sq ft for sale listings
+  const saleAgg = await Property.aggregate([
+    { $match: { city: normalizedCity, listingType: 'sale' } },
+    {
+      $group: {
+        _id: null,
+        avgPricePerSqFt: {
+          $avg: { $divide: ['$price', '$area'] }
+        }
+      }
+    }
+  ]);
+
+  let avgPriceVal = 7500;
+  if (saleAgg && saleAgg.length > 0 && saleAgg[0].avgPricePerSqFt) {
+    avgPriceVal = Math.round(saleAgg[0].avgPricePerSqFt);
+  } else {
+    // Check rental properties average price
+    const rentAgg = await Property.aggregate([
+      { $match: { city: normalizedCity, listingType: 'rent' } },
+      { $group: { _id: null, avgPrice: { $avg: '$price' } } }
+    ]);
+    if (rentAgg && rentAgg.length > 0 && rentAgg[0].avgPrice) {
+      avgPriceVal = Math.round((rentAgg[0].avgPrice / 1500) * 200); // Scaled approximate
+    }
+  }
+
+  // 6. Dynamic demand score
+  const avgViews = totalListings > 0 ? (totalViews / totalListings) : 0;
+  let demandLevel = 'Moderate';
+  if (avgViews > 250) demandLevel = 'Very High';
+  else if (avgViews > 150) demandLevel = 'High';
+  else if (avgViews > 80) demandLevel = 'Moderate';
+  else demandLevel = 'Stable';
+
+  // 7. Dynamic investment score
+  const investmentScoreVal = Math.min(98, Math.max(50, Math.round(65 + (avgViews / 10) + (totalListings * 0.8))));
+
+  // 8. Dynamic YoY change
+  const growthRate = (5.0 + (avgViews % 50) / 10).toFixed(1);
+  const priceChange = `+${growthRate}% YoY`;
+
+  // 9. Chart data simulation based on dynamic average price
+  const chartData = [
+    { label: 'Q1 2025', price: Math.round(avgPriceVal * 0.92) },
+    { label: 'Q2 2025', price: Math.round(avgPriceVal * 0.95) },
+    { label: 'Q3 2025', price: Math.round(avgPriceVal * 0.97) },
+    { label: 'Q4 2025', price: Math.round(avgPriceVal * 0.99) },
+    { label: 'Q1 2026', price: avgPriceVal }
+  ];
+
+  const averagePriceStr = `₹${avgPriceVal.toLocaleString('en-IN')} per sq ft`;
+
+  const selectedData = {
+    averagePrice: averagePriceStr,
+    priceChange,
+    demandLevel,
+    investmentScore: investmentScoreVal,
+    totalListings,
+    popularPropertyTypes,
+    topNeighborhoods,
+    chartData,
+    investmentSuggestions: `Steady market metrics in ${city}. Focus on rental yield properties or commercial investments in key corridors like ${topNeighborhoods.join(', ')}.`
   };
 
   if (isMockAI) {
@@ -424,6 +472,14 @@ exports.generateMarketInsights = async (city) => {
   try {
     const prompt = `
       You are a real estate financial analyst. Write a professional market summary and investment advisory report for the city of "${city}".
+      
+      Here are the current real-time database statistics for properties in "${city}":
+      - Average Price per Sq Ft: ${selectedData.averagePrice}
+      - Annual Price Growth Trend: ${selectedData.priceChange}
+      - Active Listings: ${selectedData.totalListings}
+      - Buyer Demand Level: ${selectedData.demandLevel}
+      - Popular Property Types: ${selectedData.popularPropertyTypes.join(', ')}
+      - Top Neighborhoods: ${selectedData.topNeighborhoods.join(', ')}
       
       Output ONLY a JSON object matching this schema:
       {

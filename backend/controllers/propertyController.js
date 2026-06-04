@@ -68,9 +68,21 @@ exports.getProperties = async (req, res, next) => {
       if (maxArea) queryObj.area.$lte = Number(maxArea);
     }
 
-    // Text search query
+    // Robust search query mapping
     if (q) {
-      queryObj.$text = { $search: q };
+      const searchVal = q.toLowerCase().trim();
+      const cityFilterVal = (city || '').toLowerCase().trim();
+      const stateFilterVal = (state || '').toLowerCase().trim();
+      
+      if (searchVal !== cityFilterVal && searchVal !== stateFilterVal) {
+        queryObj.$or = [
+          { title: { $regex: q, $options: 'i' } },
+          { description: { $regex: q, $options: 'i' } },
+          { city: { $regex: q, $options: 'i' } },
+          { state: { $regex: q, $options: 'i' } },
+          { address: { $regex: q, $options: 'i' } }
+        ];
+      }
     }
 
     console.log(`[DEBUG] Final MongoDB Query object:`, JSON.stringify(queryObj));

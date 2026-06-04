@@ -204,3 +204,21 @@ exports.chatLocality = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get all unique cities present in properties database
+// @route   GET /api/ai/cities
+// @access  Public
+exports.getAvailableCities = async (req, res, next) => {
+  try {
+    const cities = await Property.distinct('city');
+    const validCities = cities.filter(c => !!c).map(c => c.toLowerCase().trim());
+    const uniqueCities = Array.from(new Set(validCities));
+    res.status(200).json({
+      success: true,
+      cities: uniqueCities
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

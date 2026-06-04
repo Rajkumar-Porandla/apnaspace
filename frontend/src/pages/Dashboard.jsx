@@ -36,6 +36,8 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
   const [insightCity, setInsightCity] = useState('delhi');
   const [insights, setInsights] = useState(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
+  const [availableCities, setAvailableCities] = useState([]);
+
 
   // Create/Edit Listing Form Modal
   const [showAddForm, setShowAddForm] = useState(false);
@@ -302,11 +304,12 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
   };
 
   // AI Market Insights Puller
-  const triggerMarketInsights = async () => {
+  const triggerMarketInsights = async (overrideCity) => {
+    const targetCity = overrideCity || insightCity;
     setInsightsLoading(true);
     setInsights(null);
     try {
-      const res = await axios.get(`/ai/market-insights?city=${insightCity}`);
+      const res = await axios.get(`/ai/market-insights?city=${targetCity}`);
       if (res.data.success) {
         setInsights(res.data.insights);
       }
@@ -314,6 +317,32 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
       alert('Insights error: ' + err.message);
     } finally {
       setInsightsLoading(false);
+    }
+  };
+
+  const handleTabClickAiInsights = async () => {
+    setActiveTab('ai-insights');
+    try {
+      const res = await axios.get('/ai/cities');
+      if (res.data.success) {
+        setAvailableCities(res.data.cities);
+        const list = res.data.cities;
+        let defaultCity = 'delhi';
+        if (list && list.length > 0) {
+          if (list.includes('hyderabad')) {
+            defaultCity = 'hyderabad';
+          } else if (list.includes('delhi')) {
+            defaultCity = 'delhi';
+          } else {
+            defaultCity = list[0];
+          }
+          setInsightCity(defaultCity);
+        }
+        await triggerMarketInsights(defaultCity);
+      }
+    } catch (err) {
+      console.error('Error fetching available cities:', err.message);
+      await triggerMarketInsights(insightCity || 'delhi');
     }
   };
 
@@ -427,7 +456,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                   <Sparkles size={16} /> AI Desc Generator
                 </button>
                 <button 
-                  onClick={() => { setActiveTab('ai-insights'); triggerMarketInsights(); }}
+                  onClick={handleTabClickAiInsights}
                   className={`w-full text-left px-4 py-3 rounded-xl font-medium text-xs transition-colors flex items-center gap-2 ${activeTab === 'ai-insights' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'}`}
                 >
                   <TrendingUp size={16} /> AI Market Insights
@@ -810,12 +839,21 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                 <div className="flex items-center gap-2">
                   <select 
                     value={insightCity}
-                    onChange={(e) => setInsightCity(e.target.value)}
-                    className="premium-input w-36 py-2"
+                    onChange={(e) => { setInsightCity(e.target.value); triggerMarketInsights(e.target.value); }}
+                    className="premium-input w-36 py-2 capitalize"
                   >
-                    <option value="delhi">Delhi / NCR</option>
-                    <option value="mumbai">Mumbai</option>
-                    <option value="bangalore">Bangalore</option>
+                    {availableCities.length > 0 ? (
+                      availableCities.map(city => (
+                        <option key={city} value={city}>{city}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="hyderabad">Hyderabad</option>
+                        <option value="delhi">Delhi</option>
+                        <option value="mumbai">Mumbai</option>
+                        <option value="bangalore">Bangalore</option>
+                      </>
+                    )}
                   </select>
                   <button 
                     onClick={triggerMarketInsights}
@@ -1200,11 +1238,11 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">City</label>
-                    <input type="text" required value={formCity} onChange={(e) => setFormCity(e.target.value)} className="premium-input" placeholder="delhi" />
+                    <input type="text" required value={formCity} onChange={(e) => setFormCity(e.target.value)} className="premium-input" placeholder="e.g. Hyderabad" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">State</label>
-                    <input type="text" required value={formState} onChange={(e) => setFormState(e.target.value)} className="premium-input" placeholder="delhi" />
+                    <input type="text" required value={formState} onChange={(e) => setFormState(e.target.value)} className="premium-input" placeholder="e.g. Telangana" />
                   </div>
                 </div>
 

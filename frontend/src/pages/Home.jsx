@@ -109,6 +109,29 @@ export default function Home({ onViewDetails, compareList, setCompareList }) {
     }
   };
 
+  const executeSearchForCity = async (cityName) => {
+    setShowSuggestions(false);
+    setIsSearching(true);
+    setLoading(true);
+    try {
+      let query = `/properties?sort=${sort}&city=${cityName}&q=${cityName}`;
+      if (propertyType) query += `&propertyType=${propertyType}`;
+      if (minPrice) query += `&minPrice=${minPrice}`;
+      if (maxPrice) query += `&maxPrice=${maxPrice}`;
+      if (bedrooms) query += `&bedrooms=${bedrooms}`;
+      if (bathrooms) query += `&bathrooms=${bathrooms}`;
+
+      const res = await axios.get(query);
+      if (res.data.success) {
+        setProperties(res.data.properties);
+      }
+    } catch (err) {
+      console.error('Search error:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
     executeSearch();
@@ -124,8 +147,7 @@ export default function Home({ onViewDetails, compareList, setCompareList }) {
     if (sug.type === 'location') {
       setCity(sug.value);
       setSearchTerm(sug.value);
-      // Run search immediately for city selection
-      setTimeout(() => handleSearchSubmit(), 100);
+      executeSearchForCity(sug.value);
     } else {
       // Direct view of property
       onViewDetails(sug.value);
@@ -279,6 +301,29 @@ export default function Home({ onViewDetails, compareList, setCompareList }) {
               )}
             </AnimatePresence>
           </form>
+
+          {/* Quick-Access Cities (Pills) */}
+          <div className="mt-6 flex flex-wrap justify-center items-center gap-2.5 max-w-xl mx-auto relative z-10">
+            <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1">Popular Cities:</span>
+            {['hyderabad', 'delhi', 'mumbai', 'bangalore', 'pune'].map(c => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  setCity(c);
+                  setSearchTerm(c);
+                  executeSearchForCity(c);
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold capitalize transition-all duration-300 border ${
+                  city === c 
+                    ? 'bg-[#C5A880] text-[#12110E] border-[#C5A880] shadow-sm' 
+                    : 'bg-white/10 dark:bg-white/5 border-white/20 dark:border-white/10 text-slate-200 hover:text-white hover:bg-white/20 hover:border-white/30 cursor-pointer'
+                }`}
+              >
+                {c === 'delhi' ? 'Delhi / NCR' : c}
+              </button>
+            ))}
+          </div>
 
         </motion.div>
       </div>
