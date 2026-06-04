@@ -109,7 +109,7 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
       try {
         const intelRes = await axios.get(`/ai/location-intelligence?propertyId=${propertyId}`);
         if (intelRes.data && intelRes.data.success) {
-          setLocationIntel(intelRes.data.data);
+          setLocationIntel(intelRes.data);
         }
       } catch (e) {
         console.error('Error loading location intelligence:', e.message);
@@ -383,6 +383,8 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
     );
   }
 
+  const images = data.images || [];
+  const amenities = data.amenities || [];
   const nearby = getNearbyFacilities();
 
   const getSimulatedInterestStats = () => {
@@ -419,7 +421,7 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
           <div className="glass-card overflow-hidden p-3 rounded-3xl border border-slate-200/30 bg-white/60 dark:bg-slate-900/60 shadow-sm">
             <div className="relative aspect-[16/9] rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800">
               <img 
-                src={data.images[activeImage] || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80'} 
+                src={images[activeImage] || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80'} 
                 alt="" 
                 onError={(e) => {
                   e.target.onerror = null;
@@ -430,9 +432,9 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
             </div>
             
             {/* Gallery Thumbs */}
-            {data.images.length > 1 && (
+            {images.length > 1 && (
               <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
-                {data.images.map((img, idx) => (
+                {images.map((img, idx) => (
                   <button 
                     key={idx}
                     onClick={() => setActiveImage(idx)}
@@ -517,7 +519,7 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
             {/* Amenities Grid */}
             <h3 className="font-bold text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wider text-slate-400 mb-3">Amenities Included</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {data.amenities.map((amenity, idx) => (
+              {amenities.map((amenity, idx) => (
                 <div 
                   key={idx}
                   className="flex items-center gap-2 p-2 bg-slate-50/50 dark:bg-slate-950/20 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-100/50 dark:border-slate-800/10"
