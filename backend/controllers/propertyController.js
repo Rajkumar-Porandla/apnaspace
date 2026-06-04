@@ -21,17 +21,33 @@ exports.getProperties = async (req, res, next) => {
       listingType,
       q, // Search query text
       sort,
+      seller,
+      agent,
+      status,
       page = 1,
       limit = 10,
     } = req.query;
 
+    console.log(`[DEBUG] getProperties request received. Query parameters:`, req.query);
+
     // Building query
-    const queryObj = { status: 'available' }; // Only show active listings
+    const queryObj = {};
+
+    // Apply status filter: if status is provided, filter by it.
+    // If not, and we are not searching for a specific seller/agent, default to 'available'.
+    // If we are searching for a specific seller/agent, return all their listings.
+    if (status) {
+      queryObj.status = status;
+    } else if (!seller && !agent) {
+      queryObj.status = 'available';
+    }
 
     if (city) queryObj.city = city.toLowerCase().trim();
     if (state) queryObj.state = state.toLowerCase().trim();
     if (propertyType) queryObj.propertyType = propertyType;
     if (listingType) queryObj.listingType = listingType;
+    if (seller) queryObj.seller = seller;
+    if (agent) queryObj.agent = agent;
     
     // Budget range
     if (minPrice || maxPrice) {
@@ -55,6 +71,8 @@ exports.getProperties = async (req, res, next) => {
     if (q) {
       queryObj.$text = { $search: q };
     }
+
+    console.log(`[DEBUG] Final MongoDB Query object:`, JSON.stringify(queryObj));
 
     // Sorting
     let sortOption = { createdAt: -1 }; // Default: Newest first
@@ -90,6 +108,8 @@ exports.getProperties = async (req, res, next) => {
 
     // Total count for pagination metadata
     const total = await Property.countDocuments(queryObj);
+
+    console.log(`[DEBUG] Fetch results. Total matching: ${total}, Retreived on this page: ${properties.length}`);
 
     res.status(200).json({
       success: true,
@@ -198,17 +218,25 @@ exports.getProperty = async (req, res, next) => {
 // @access  Private (Seller, Agent, Admin)
 exports.createProperty = async (req, res, next) => {
   try {
+    console.log(`[DEBUG] createProperty request received. User ID: ${req?.user?.id}, Role: ${req?.user?.role}`);
+    console.log(`[DEBUG] Received request body keys:`, Object.keys(req.body));
+
     // Add seller references
     req.body.seller = req.user.id;
+
+    // Default status to available so it is active immediately
+    req.body.status = req.body.status || 'available';
 
     // Handle files upload
     let imageUrls = [];
     if (req.files && req.files.length > 0) {
+      console.log(`[DEBUG] Uploading ${req.files.length} images...`);
       for (const file of req.files) {
         const uploaded = await uploadToCloudinary(file.buffer);
         imageUrls.push(uploaded.secure_url);
       }
     } else {
+      console.log(`[DEBUG] No images uploaded. Setting default premium placeholder image.`);
       // Set a default premium placeholder if no image was provided
       imageUrls.push('https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80');
     }
@@ -235,13 +263,20 @@ exports.createProperty = async (req, res, next) => {
       }
     }
 
+    console.log(`[DEBUG] Saving property to MongoDB. Payload:`, JSON.stringify(req.body));
     const property = await Property.create(req.body);
+
+    console.log(`[DEBUG] Property saved successfully in MongoDB.`);
+    console.log(`[DEBUG] MongoDB document ID: ${property._id}`);
+    console.log(`[DEBUG] Seller ID: ${property.seller}`);
+    console.log(`[DEBUG] Status: ${property.status}`);
 
     res.status(201).json({
       success: true,
       property,
     });
   } catch (error) {
+    console.error(`[DEBUG] Error in createProperty:`, error);
     next(error);
   }
 };

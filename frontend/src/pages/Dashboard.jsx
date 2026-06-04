@@ -99,11 +99,12 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
   // Fetch properties listed by seller/agent
   const fetchMyListings = async () => {
     try {
-      const res = await axios.get('/properties');
+      const url = user?.role === 'agent'
+        ? `/properties?agent=${user._id}&limit=100`
+        : `/properties?seller=${user._id}&limit=100`;
+      const res = await axios.get(url);
       if (res.data.success) {
-        // Filter local mock array by seller matching req.user.id
-        const filtered = res.data.properties.filter(p => p.seller?._id === user._id || p.seller === user._id || p.agent?._id === user._id || p.agent === user._id);
-        setMyProperties(filtered);
+        setMyProperties(res.data.properties);
       }
     } catch (err) {
       console.error('My listings load error:', err.message);
