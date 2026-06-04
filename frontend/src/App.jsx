@@ -77,7 +77,7 @@ function MainApp() {
 
       {/* FOOTER */}
       <footer className="py-6 border-t border-slate-200/50 dark:border-slate-800/40 text-center text-xs text-slate-400">
-        © {new Date().getFullYear()} ApnaSpace Inc. Built with Google Gemini API & Socket.io. All rights reserved.
+        © {new Date().getFullYear()} ApnaSpace Inc. All rights reserved.
       </footer>
 
     </div>
