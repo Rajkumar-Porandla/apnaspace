@@ -17,6 +17,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
   const [activeTab, setActiveTab] = useState('');
   const [bookings, setBookings] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [visitsSubTab, setVisitsSubTab] = useState('pipeline');
   const [reschedulingVisitId, setReschedulingVisitId] = useState(null);
   const [newVisitDate, setNewVisitDate] = useState('');
   const [newVisitTime, setNewVisitTime] = useState('');
@@ -1103,7 +1104,6 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
           {/* TAB 4: SELLER/AGENT VISIT REQUESTS & PIPELINES */}
           {activeTab === 'visits-host' && (() => {
             // Local state inside an IIFE render block
-            const [visitsSubTab, setVisitsSubTab] = useState('pipeline');
             const stats = (() => {
               const res = {};
               visits.forEach(v => {
