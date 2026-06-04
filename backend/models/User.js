@@ -69,6 +69,33 @@ const UserSchema = new mongoose.Schema(
         },
       },
     ],
+    riskScore: {
+      type: Number,
+      default: 15,
+      min: 0,
+      max: 100,
+    },
+    verificationConfidenceScore: {
+      type: Number,
+      default: 20,
+      min: 0,
+      max: 100,
+    },
+    isSuspended: {
+      type: Boolean,
+      default: false,
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'under_review', 'verified', 'rejected'],
+      default: 'pending',
+    },
+    verificationDocuments: {
+      aadhaarPan: { type: String, default: '' },
+      ownershipDoc: { type: String, default: '' },
+      taxReceipt: { type: String, default: '' },
+      utilityBill: { type: String, default: '' },
+    },
   },
   {
     timestamps: true,

@@ -7,11 +7,13 @@ const {
   updateProfile,
   forgotPassword,
   resetPassword,
-  toggleSaveProperty
+  toggleSaveProperty,
+  uploadUserDocs
 } = require('../controllers/authController');
 
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 router.post('/register', register);
 router.post('/login', login);
@@ -23,5 +25,11 @@ router.post('/reset-password/:token', resetPassword);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
 router.post('/saved/:propertyId', protect, toggleSaveProperty);
+router.put('/verify-docs', protect, upload.fields([
+  { name: 'aadhaarPan', maxCount: 1 },
+  { name: 'ownershipDoc', maxCount: 1 },
+  { name: 'taxReceipt', maxCount: 1 },
+  { name: 'utilityBill', maxCount: 1 }
+]), uploadUserDocs);
 
 module.exports = router;

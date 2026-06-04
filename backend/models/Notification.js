@@ -16,7 +16,18 @@ const NotificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['inquiry', 'booking_request', 'booking_status', 'property_saved', 'property_sold'],
+      enum: [
+        'inquiry', 
+        'booking_request', 
+        'booking_status', 
+        'property_saved', 
+        'property_sold', 
+        'property_verified', 
+        'property_rejected', 
+        'verification_request', 
+        'fraud_alert', 
+        'chat_message'
+      ],
     },
     title: {
       type: String,

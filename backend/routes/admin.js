@@ -5,7 +5,12 @@ const {
   updateUser,
   deleteUser,
   getListings,
-  updateListingStatus
+  updateListingStatus,
+  suspendUser,
+  getFraudAlerts,
+  resolveFraudAlert,
+  verifyProperty,
+  verifyUser
 } = require('../controllers/adminController');
 
 const router = express.Router();
@@ -20,5 +25,10 @@ router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.get('/listings', getListings);
 router.put('/listings/:id/status', updateListingStatus);
+router.put('/users/:id/suspend', suspendUser);
+router.get('/fraud-alerts', getFraudAlerts);
+router.put('/fraud-alerts/:id/resolve', resolveFraudAlert);
+router.put('/listings/:id/verify', verifyProperty);
+router.put('/users/:id/verify', verifyUser);
 
 module.exports = router;

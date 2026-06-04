@@ -16,7 +16,32 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
 
   const [activeTab, setActiveTab] = useState('');
   const [bookings, setBookings] = useState([]);
-  const [myProperties, setMyProperties] = useState([]);
+  const [visits, setVisits] = useState([]);
+  const [reschedulingVisitId, setReschedulingVisitId] = useState(null);
+  const [newVisitDate, setNewVisitDate] = useState('');
+  const [newVisitTime, setNewVisitTime] = useState('');
+  
+  // Document Upload States
+  const [userAadhaarFile, setUserAadhaarFile] = useState(null);
+  const [userOwnershipFile, setUserOwnershipFile] = useState(null);
+  const [userTaxFile, setUserTaxFile] = useState(null);
+  const [userUtilityFile, setUserUtilityFile] = useState(null);
+  const [userDocSuccess, setUserDocSuccess] = useState('');
+  const [userDocLoading, setUserDocLoading] = useState(false);
+
+  const [uploadingPropId, setUploadingPropId] = useState(null);
+  const [propOwnershipFile, setPropOwnershipFile] = useState(null);
+  const [propTaxFile, setPropTaxFile] = useState(null);
+  const [propUtilityFile, setPropUtilityFile] = useState(null);
+  const [propDocSuccess, setPropDocSuccess] = useState('');
+  const [propDocLoading, setPropDocLoading] = useState(false);
+
+  // Notification States
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fraud Alert States
+  const [fraudAlerts, setFraudAlerts] = useState([]);
   
   // Admin Specific
   const [adminMetrics, setAdminMetrics] = useState(null);
@@ -71,30 +96,193 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
 
   useEffect(() => {
     if (user) {
+      fetchNotifications();
       // Set default tab based on user role
       if (user.role === 'buyer') {
         setActiveTab('visits');
-        fetchBookings();
+        fetchVisits();
       } else if (user.role === 'seller' || user.role === 'agent') {
         setActiveTab('listings');
         fetchMyListings();
-        fetchBookings();
+        fetchVisits();
       } else if (user.role === 'admin') {
         setActiveTab('admin-stats');
         fetchAdminData();
+        fetchFraudAlerts();
       }
     }
   }, [user]);
 
-  // Fetch bookings scheduled with or by the user
-  const fetchBookings = async () => {
+  // Fetch centralized notifications
+  const fetchNotifications = async () => {
     try {
-      const res = await axios.get('/bookings');
+      const res = await axios.get('/notifications');
       if (res.data.success) {
-        setBookings(res.data.bookings);
+        setNotifications(res.data.data);
+        setUnreadCount(res.data.unreadCount);
       }
     } catch (err) {
-      console.error('Bookings load error:', err.message);
+      console.error('Notifications load error:', err.message);
+    }
+  };
+
+  const markNotificationRead = async (id) => {
+    try {
+      const res = await axios.put(`/notifications/${id}/read`);
+      if (res.data.success) {
+        fetchNotifications();
+      }
+    } catch (err) {
+      console.error('Mark notification read error:', err.message);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      const res = await axios.put('/notifications/read-all');
+      if (res.data.success) {
+        fetchNotifications();
+      }
+    } catch (err) {
+      console.error('Mark all notifications read error:', err.message);
+    }
+  };
+
+  // Fetch Fraud alerts (Admin only)
+  const fetchFraudAlerts = async () => {
+    try {
+      const res = await axios.get('/admin/fraud-alerts');
+      if (res.data.success) {
+        setFraudAlerts(res.data.alerts);
+      }
+    } catch (err) {
+      console.error('Fraud alerts load error:', err.message);
+    }
+  };
+
+  const handleResolveFraudAlert = async (id) => {
+    try {
+      const res = await axios.put(`/admin/fraud-alerts/${id}/resolve`);
+      if (res.data.success) {
+        fetchFraudAlerts();
+        fetchAdminData();
+      }
+    } catch (err) {
+      alert('Error resolving fraud alert: ' + err.message);
+    }
+  };
+
+  // User Document Upload Verification handler
+  const handleUserDocsSubmit = async (e) => {
+    e.preventDefault();
+    setUserDocSuccess('');
+    setUserDocLoading(true);
+
+    try {
+      const formData = new FormData();
+      if (userAadhaarFile) formData.append('aadhaarPan', userAadhaarFile);
+      if (userOwnershipFile) formData.append('ownershipDoc', userOwnershipFile);
+      if (userTaxFile) formData.append('taxReceipt', userTaxFile);
+      if (userUtilityFile) formData.append('utilityBill', userUtilityFile);
+
+      const res = await axios.put('/auth/verify-docs', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data.success) {
+        setUserDocSuccess('Identity verification documents submitted successfully! Under Review.');
+        // Refresh local cache via reload profile info or alert
+        setUserAadhaarFile(null);
+        setUserOwnershipFile(null);
+        setUserTaxFile(null);
+        setUserUtilityFile(null);
+      }
+    } catch (err) {
+      alert('Document upload failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setUserDocLoading(false);
+    }
+  };
+
+  // Property Document Upload Verification handler
+  const handlePropertyDocsSubmit = async (e, propertyId) => {
+    e.preventDefault();
+    setPropDocSuccess('');
+    setPropDocLoading(true);
+
+    try {
+      const formData = new FormData();
+      if (propOwnershipFile) formData.append('ownershipDoc', propOwnershipFile);
+      if (propTaxFile) formData.append('taxReceipt', propTaxFile);
+      if (propUtilityFile) formData.append('utilityBill', propUtilityFile);
+
+      const res = await axios.put(`/properties/${propertyId}/verify-docs`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      if (res.data.success) {
+        setPropDocSuccess('Property verification documents uploaded successfully! Status updated to Under Review.');
+        setPropOwnershipFile(null);
+        setPropTaxFile(null);
+        setPropUtilityFile(null);
+        setUploadingPropId(null);
+        fetchMyListings();
+      }
+    } catch (err) {
+      alert('Property documents upload failed: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setPropDocLoading(false);
+    }
+  };
+
+  // Admin Verification approvals
+  const handleAdminVerifyUser = async (id, status) => {
+    try {
+      const res = await axios.put(`/admin/users/${id}/verify`, { status: status ? 'verified' : 'rejected' });
+      if (res.data.success) {
+        fetchAdminData();
+        fetchFraudAlerts();
+      }
+    } catch (err) {
+      alert('Error updating user verification: ' + err.message);
+    }
+  };
+
+  const handleAdminVerifyProperty = async (id, status) => {
+    try {
+      const res = await axios.put(`/admin/listings/${id}/verify`, { status: status ? 'verified' : 'rejected' });
+      if (res.data.success) {
+        fetchAdminData();
+        fetchFraudAlerts();
+      }
+    } catch (err) {
+      alert('Error updating property verification: ' + err.message);
+    }
+  };
+
+  const handleAdminSuspendUser = async (id) => {
+    try {
+      const res = await axios.put(`/admin/users/${id}/suspend`);
+      if (res.data.success) {
+        fetchAdminData();
+        fetchFraudAlerts();
+      }
+    } catch (err) {
+      alert('Error toggling user suspension: ' + err.message);
+    }
+  };
+
+  // Fetch visits scheduled with or by the user
+  const fetchVisits = async () => {
+    try {
+      const res = await axios.get('/visits');
+      if (res.data.success) {
+        setVisits(res.data.data);
+        // Map to bookings to support legacy layouts if any fallback is needed
+        setBookings(res.data.data);
+      }
+    } catch (err) {
+      console.error('Visits load error:', err.message);
     }
   };
 
@@ -133,13 +321,16 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
     }
   };
 
-  // Booking approvals
-  const handleBookingStatus = async (id, status) => {
+  // Visit status updates (Approve, Reject, Reschedule)
+  const handleVisitStatus = async (id, status, visitDate = null, visitTime = null) => {
     try {
-      const res = await axios.put(`/bookings/${id}`, { status });
+      const payload = { status };
+      if (visitDate) payload.visitDate = visitDate;
+      if (visitTime) payload.visitTime = visitTime;
+      const res = await axios.put(`/visits/${id}/status`, payload);
       if (res.data.success) {
-        // Refresh bookings lists
-        fetchBookings();
+        fetchVisits();
+        setReschedulingVisitId(null);
         if (status === 'approved') {
           confetti({
             particleCount: 80,
@@ -149,7 +340,69 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
         }
       }
     } catch (err) {
-      alert('Error updating booking status: ' + err.message);
+      alert('Error updating visit request: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Confirm visit completion (both buyer and seller)
+  const handleCompleteVisit = async (id) => {
+    try {
+      const res = await axios.put(`/visits/${id}/complete`);
+      if (res.data.success) {
+        fetchVisits();
+        confetti({
+          particleCount: 50,
+          spread: 40,
+          origin: { y: 0.8 }
+        });
+      }
+    } catch (err) {
+      alert('Error completing visit: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Submit buyer interest level
+  const handleSubmitInterest = async (id, interestLevel) => {
+    try {
+      const res = await axios.post(`/visits/${id}/interest`, { interestLevel });
+      if (res.data.success) {
+        fetchVisits();
+      }
+    } catch (err) {
+      alert('Error submitting interest: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Submit buyer purchase decision
+  const handleSubmitDecision = async (id, decision) => {
+    try {
+      const res = await axios.post(`/visits/${id}/decision`, { decision });
+      if (res.data.success) {
+        fetchVisits();
+      }
+    } catch (err) {
+      alert('Error submitting purchase decision: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  // Confirm property sold to a buyer
+  const handleSellProperty = async (id) => {
+    if (!window.confirm("Are you sure you want to mark this property as SOLD to this buyer? This action will permanently archive active listings and search results for this property.")) {
+      return;
+    }
+    try {
+      const res = await axios.post(`/visits/${id}/sell`);
+      if (res.data.success) {
+        fetchVisits();
+        fetchMyListings();
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.5 }
+        });
+      }
+    } catch (err) {
+      alert('Error finalizing property sale: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -346,17 +599,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
     }
   };
 
-  // Admin approval togglers
-  const handleAdminVerifyUser = async (id, status) => {
-    try {
-      const res = await axios.put(`/admin/users/${id}`, { isVerifiedAgent: status });
-      if (res.data.success) {
-        fetchAdminData();
-      }
-    } catch (err) {
-      alert('Verification error: ' + err.message);
-    }
-  };
+  // Admin deletion handlers
 
   const handleAdminDeleteUser = async (id) => {
     if (!window.confirm('Delete user and all their listings? This cannot be undone.')) return;
@@ -444,7 +687,7 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                   <Building size={16} /> Manage Listings
                 </button>
                 <button 
-                  onClick={() => { setActiveTab('visits-host'); fetchBookings(); }}
+                  onClick={() => { setActiveTab('visits-host'); fetchVisits(); }}
                   className={`w-full text-left px-4 py-3 rounded-xl font-medium text-xs transition-colors flex items-center gap-2 ${activeTab === 'visits-host' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'}`}
                 >
                   <Calendar size={16} /> Client Visits Requests
@@ -489,6 +732,25 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
             )}
 
             <button 
+              onClick={() => { setActiveTab('notifications'); markAllNotificationsRead(); }}
+              className={`w-full text-left px-4 py-3 rounded-xl font-medium text-xs transition-colors flex items-center gap-2 ${activeTab === 'notifications' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'}`}
+            >
+              <ShieldAlert size={16} /> Notification Center
+              {unreadCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">{unreadCount}</span>
+              )}
+            </button>
+
+            {user?.role === 'admin' && (
+              <button 
+                onClick={() => { setActiveTab('admin-fraud'); fetchFraudAlerts(); }}
+                className={`w-full text-left px-4 py-3 rounded-xl font-medium text-xs transition-colors flex items-center gap-2 ${activeTab === 'admin-fraud' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'}`}
+              >
+                <ShieldAlert size={16} /> Risk Alert Center
+              </button>
+            )}
+
+            <button 
               onClick={() => setActiveTab('profile')}
               className={`w-full text-left px-4 py-3 rounded-xl font-medium text-xs transition-colors flex items-center gap-2 ${activeTab === 'profile' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800/40 text-slate-600 dark:text-slate-400'}`}
             >
@@ -504,43 +766,146 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
           {activeTab === 'visits' && (
             <div className="glass-card p-6 rounded-3xl">
               <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-                <Calendar /> My Scheduled Visits
+                <Calendar /> My Scheduled Property Visits
               </h2>
-              {bookings.length === 0 ? (
+              {visits.length === 0 ? (
                 <div className="text-center py-12 text-xs text-slate-400">
                   You have not scheduled any visits yet. Go to Discover to find listings.
                 </div>
               ) : (
-                <div className="flex flex-col gap-4">
-                  {bookings.map(b => (
-                    <div key={b._id} className="p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div>
-                        <h4 
-                          onClick={() => onViewProperty(b.property?._id)}
-                          className="font-bold text-sm text-slate-800 dark:text-slate-200 hover:text-indigo-500 cursor-pointer transition-colors"
-                        >
-                          {b.property?.title}
-                        </h4>
-                        <div className="text-xs text-slate-400 mt-1">
-                          Date: {new Date(b.visitDate).toDateString()} | Time slot: {b.visitTime}
+                <div className="flex flex-col gap-6">
+                  {visits.map(v => {
+                    const isSold = v.property?.status === 'sold';
+                    return (
+                      <div key={v._id} className="p-5 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col gap-4 shadow-xs">
+                        
+                        {/* Property & Seller Title Info */}
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 
+                              onClick={() => onViewProperty(v.property?._id)}
+                              className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-200 hover:text-indigo-500 cursor-pointer transition-colors flex items-center gap-2"
+                            >
+                              {v.property?.title}
+                              {isSold && (
+                                <span className="bg-red-500 text-white text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">SOLD</span>
+                              )}
+                            </h4>
+                            <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-4">
+                              <span>📅 Date: {new Date(v.visitDate).toDateString()}</span>
+                              <span>⏰ Time: {v.visitTime}</span>
+                              <span>👤 Host: {v.seller?.name || 'Listing Manager'}</span>
+                            </div>
+                            {v.notes && (
+                              <p className="text-xs text-slate-500 mt-2 bg-slate-100/50 dark:bg-slate-900/40 p-2 rounded-lg italic">
+                                Notes: "{v.notes}"
+                              </p>
+                            )}
+                          </div>
+                          
+                          {/* Main visit status badge */}
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            v.status === 'completed'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                              : v.status === 'approved' 
+                              ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
+                              : v.status === 'rejected'
+                              ? 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400'
+                              : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                          }`}>
+                            {v.status}
+                          </span>
                         </div>
-                        <div className="text-xs text-slate-400 mt-1 capitalize">
-                          Listing Host: {b.sellerOrAgent?.name}
-                        </div>
+
+                        {/* Interactive flow for approved/completed visits */}
+                        {v.status === 'approved' && (
+                          <div className="mt-2 p-3 bg-indigo-50/25 dark:bg-indigo-950/20 border border-indigo-200/20 rounded-xl flex items-center justify-between gap-4">
+                            <span className="text-xs text-indigo-600/90 dark:text-indigo-400/90 font-medium">
+                              Have you visited this property? Let the seller know once you complete the tour.
+                            </span>
+                            <button
+                              onClick={() => handleCompleteVisit(v._id)}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all flex items-center gap-1"
+                            >
+                              <Check size={14} /> Yes, Visited Property
+                            </button>
+                          </div>
+                        )}
+
+                        {v.status === 'completed' && (
+                          <div className="mt-2 p-4 bg-emerald-50/10 dark:bg-emerald-950/5 border border-emerald-200/20 rounded-xl flex flex-col gap-4">
+                            <div className="text-xs text-emerald-600/90 dark:text-emerald-400/90 font-semibold flex items-center gap-1">
+                              🎉 Visit tour completed successfully!
+                            </div>
+                            
+                            {/* Step 5: Post Visit Feedback / Interest level */}
+                            <div className="border-t border-slate-200/20 pt-3">
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Did you like this property?</p>
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  { level: 'very_interested', label: '🤩 Very Interested' },
+                                  { level: 'interested', label: '😊 Interested' },
+                                  { level: 'not_interested', label: '😐 Not Interested' }
+                                ].map(opt => {
+                                  const isSelected = v.interest?.interestLevel === opt.level;
+                                  return (
+                                    <button
+                                      key={opt.level}
+                                      onClick={() => handleSubmitInterest(v._id, opt.level)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                                        isSelected 
+                                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs' 
+                                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Step 6: Purchase Decision */}
+                            <div className="border-t border-slate-200/20 pt-3">
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Have you decided to purchase this property?</p>
+                              <div className="flex flex-wrap gap-2">
+                                {[
+                                  { dec: 'yes_purchase', label: '🤝 Yes, I want to purchase' },
+                                  { dec: 'still_negotiating', label: '💬 Still Negotiating' },
+                                  { dec: 'not_interested', label: '❌ Not Interested' }
+                                ].map(opt => {
+                                  const isSelected = v.purchaseRequest?.decision === opt.dec;
+                                  return (
+                                    <button
+                                      key={opt.dec}
+                                      onClick={() => handleSubmitDecision(v._id, opt.dec)}
+                                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                                        isSelected 
+                                          ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs' 
+                                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {v.purchaseRequest?.decision === 'yes_purchase' && (
+                                <div className="mt-2 text-[11px] text-indigo-500 font-medium">
+                                  {v.transaction 
+                                    ? '🎉 Final sale confirmed! The transaction record has been generated.' 
+                                    : '⏳ Purchase intent submitted to the listing manager. Seller is preparing transaction details.'
+                                  }
+                                </div>
+                              )}
+                            </div>
+
+                          </div>
+                        )}
+
                       </div>
-                      
-                      {/* Booking status badge */}
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                        b.status === 'approved' 
-                          ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                          : b.status === 'rejected'
-                          ? 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400'
-                          : 'bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                      }`}>
-                        {b.status}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -603,109 +968,514 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
 
               {myProperties.length === 0 ? (
                 <div className="text-center py-12 text-xs text-slate-400">
-                  You have not created any property listings yet. Click 'Add Property' to get started.
+                  You have not listed any properties yet. Click "Add Property" to get started.
                 </div>
               ) : (
-                <div className="flex flex-col gap-4">
-                  {myProperties.map(p => (
-                    <div key={p._id} className="p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex gap-3">
-                        <img src={p.images[0]} className="w-16 h-12 rounded-lg object-cover flex-shrink-0" />
-                        <div>
-                          <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{p.title}</h4>
-                          <span className="text-[10px] text-slate-400 capitalize">{p.propertyType} | {p.city}</span>
-                          <span className={`ml-2 px-2 py-0.5 rounded text-[8px] font-bold uppercase ${
-                            p.status === 'available' ? 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                          }`}>{p.status}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        <button 
-                          onClick={() => triggerEditListing(p)}
-                          className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 hover:text-indigo-500 rounded-xl transition-colors"
-                          title="Edit"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteListing(p._id)}
-                          className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-600 dark:bg-slate-800 rounded-xl transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: SELLER/AGENT BOOKING VISITS HOST */}
-          {activeTab === 'visits-host' && (
-            <div className="glass-card p-6 rounded-3xl">
-              <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-                <Calendar /> Scheduled Client Visit Requests
-              </h2>
-              {bookings.length === 0 ? (
-                <div className="text-center py-12 text-xs text-slate-400">
-                  No client visit requests scheduled yet.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {bookings.map(b => (
-                    <div key={b._id} className="p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                          {b.property?.title}
-                        </h4>
-                        <div className="text-xs text-slate-400 mt-1">
-                          Date: {new Date(b.visitDate).toDateString()} | Time: {b.visitTime}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-1">
-                          Scheduled by client: <span className="font-semibold">{b.buyer?.name}</span> ({b.buyer?.email})
-                        </div>
-                        {b.notes && (
-                          <div className="text-xs text-indigo-500/70 mt-2 bg-indigo-50/20 p-2 rounded-lg italic">
-                            "{b.notes}"
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {myProperties.map(p => {
+                    const isUploadingThis = uploadingPropId === p._id;
+                    return (
+                      <div key={p._id} className="p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col gap-3 relative shadow-xs">
+                        
+                        <div className="flex gap-4">
+                          <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=120&h=80&q=80'} className="w-24 h-20 rounded-xl object-cover flex-shrink-0" />
+                          <div className="min-w-0 flex-grow">
+                            <h4 className="font-bold text-xs sm:text-sm truncate">{p.title}</h4>
+                            <div className="text-[10px] text-slate-400 capitalize mt-1">{p.type} | {p.city}</div>
+                            <div className="text-xs font-bold text-indigo-500 mt-2">
+                              ₹{p.price >= 10000000 ? `${(p.price / 10000000).toFixed(2)} Cr` : `${(p.price / 100000).toFixed(0)} Lakh`}
+                            </div>
+                            <div className="flex items-center gap-3 mt-3">
+                              <button 
+                                onClick={() => onEditProperty(p)}
+                                className="text-xs text-slate-500 hover:text-indigo-500 flex items-center gap-1 font-semibold"
+                              >
+                                <Edit size={12} /> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteListing(p._id)}
+                                className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 font-semibold"
+                              >
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="flex items-center gap-2 self-end sm:self-center">
-                        {b.status === 'pending' ? (
-                          <>
-                            <button 
-                              onClick={() => handleBookingStatus(b._id, 'rejected')}
-                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                        {/* Property Verification section */}
+                        <div className="border-t border-slate-200/20 pt-3 flex flex-col gap-2 mt-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-400 uppercase text-[9px]">Verification Registry</span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                              p.verificationStatus === 'verified'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : p.verificationStatus === 'under_review'
+                                ? 'bg-indigo-100 text-indigo-700 animate-pulse'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {p.verificationStatus === 'verified' ? '✓ Verified Property' : p.verificationStatus === 'under_review' ? '⏳ Under Review' : '⚠ Action Required'}
+                            </span>
+                          </div>
+
+                          {p.verificationStatus !== 'verified' && p.verificationStatus !== 'under_review' && !isUploadingThis && (
+                            <button
+                              onClick={() => {
+                                setUploadingPropId(p._id);
+                                setPropDocSuccess('');
+                              }}
+                              className="w-full text-center py-1.5 bg-indigo-50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-bold"
                             >
-                              <X size={12} /> Reject
+                              Upload Ownership Deeds for Verification
                             </button>
-                            <button 
-                              onClick={() => handleBookingStatus(b._id, 'approved')}
-                              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                            >
-                              <Check size={12} /> Approve
-                            </button>
-                          </>
-                        ) : (
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            b.status === 'approved' 
-                              ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
-                              : 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400'
-                          }`}>
-                            {b.status}
-                          </span>
-                        )}
+                          )}
+
+                          {isUploadingThis && (
+                            <form onSubmit={(e) => handlePropertyDocsSubmit(e, p._id)} className="flex flex-col gap-2 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200/10 text-[10px]">
+                              {propDocSuccess && (
+                                <div className="p-2 bg-emerald-100 text-emerald-600 rounded mb-1 font-bold text-center">
+                                  {propDocSuccess}
+                                </div>
+                              )}
+                              
+                              <div>
+                                <label className="block font-bold text-slate-400 uppercase text-[8px] mb-1">Ownership Deed / Certificate</label>
+                                <input
+                                  type="file"
+                                  required
+                                  onChange={(e) => setPropOwnershipFile(e.target.files[0])}
+                                  className="w-full text-[9px]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block font-bold text-slate-400 uppercase text-[8px] mb-1">Recent Property Tax Receipt</label>
+                                <input
+                                  type="file"
+                                  onChange={(e) => setPropTaxFile(e.target.files[0])}
+                                  className="w-full text-[9px]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block font-bold text-slate-400 uppercase text-[8px] mb-1">Utility / Electricity Bill</label>
+                                <input
+                                  type="file"
+                                  onChange={(e) => setPropUtilityFile(e.target.files[0])}
+                                  className="w-full text-[9px]"
+                                />
+                              </div>
+
+                              <div className="flex gap-2 mt-1">
+                                <button
+                                  type="submit"
+                                  disabled={propDocLoading}
+                                  className="flex-1 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-bold rounded"
+                                >
+                                  {propDocLoading ? 'Uploading...' : 'Submit files'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setUploadingPropId(null)}
+                                  className="py-1 px-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+
+                        <span className={`absolute top-2 right-2 text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                          p.status === 'sold' 
+                            ? 'bg-red-500 text-white' 
+                            : p.status === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-emerald-100 text-emerald-700'
+                        }`}>
+                          {p.status}
+                        </span>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
+
+          {/* TAB 4: SELLER/AGENT VISIT REQUESTS & PIPELINES */}
+          {activeTab === 'visits-host' && (() => {
+            // Local state inside an IIFE render block
+            const [visitsSubTab, setVisitsSubTab] = useState('pipeline');
+            const stats = (() => {
+              const res = {};
+              visits.forEach(v => {
+                if (!v.property) return;
+                const pid = v.property._id;
+                if (!res[pid]) {
+                  res[pid] = {
+                    id: pid,
+                    title: v.property.title,
+                    price: v.property.price,
+                    city: v.property.city,
+                    status: v.property.status,
+                    total: 0,
+                    approved: 0,
+                    completed: 0,
+                    interested: 0,
+                    purchaseRequests: 0,
+                    soldTo: null,
+                    scheduledBuyers: [],
+                    attendedBuyers: [],
+                    interestedBuyers: [],
+                    purchaseIntentBuyers: [],
+                    finalPurchasedBuyers: []
+                  };
+                }
+                
+                const buyerInfo = {
+                  id: v.buyer?._id,
+                  name: v.buyer?.name,
+                  email: v.buyer?.email
+                };
+
+                res[pid].total += 1;
+                res[pid].scheduledBuyers.push(buyerInfo);
+
+                if (v.status === 'approved') {
+                  res[pid].approved += 1;
+                }
+                if (v.status === 'completed') {
+                  res[pid].completed += 1;
+                  res[pid].approved += 1;
+                  res[pid].attendedBuyers.push(buyerInfo);
+                }
+                if (v.interest && ['very_interested', 'interested'].includes(v.interest.interestLevel)) {
+                  res[pid].interested += 1;
+                  res[pid].interestedBuyers.push(buyerInfo);
+                }
+                if (v.purchaseRequest && v.purchaseRequest.decision === 'yes_purchase') {
+                  res[pid].purchaseRequests += 1;
+                  res[pid].purchaseIntentBuyers.push(buyerInfo);
+                }
+                if (v.transaction || v.property.status === 'sold') {
+                  res[pid].soldTo = v.buyer?.name;
+                  res[pid].finalPurchasedBuyers.push(buyerInfo);
+                }
+              });
+
+              // Unique values filtering
+              Object.values(res).forEach(item => {
+                const uniq = (arr) => Array.from(new Map(arr.map(x => [x.id, x])).values());
+                item.scheduledBuyers = uniq(item.scheduledBuyers);
+                item.attendedBuyers = uniq(item.attendedBuyers);
+                item.interestedBuyers = uniq(item.interestedBuyers);
+                item.purchaseIntentBuyers = uniq(item.purchaseIntentBuyers);
+                item.finalPurchasedBuyers = uniq(item.finalPurchasedBuyers);
+              });
+
+              return Object.values(res);
+            })();
+
+            return (
+              <div className="glass-card p-6 rounded-3xl">
+                {/* Headers and mini tab navigation */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                  <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <Calendar /> Client Visits & Pipeline Control
+                  </h2>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button
+                      onClick={() => setVisitsSubTab('pipeline')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${visitsSubTab === 'pipeline' ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-xs' : 'text-slate-500'}`}
+                    >
+                      Visits & Pipelines
+                    </button>
+                    <button
+                      onClick={() => setVisitsSubTab('analytics')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${visitsSubTab === 'analytics' ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-xs' : 'text-slate-500'}`}
+                    >
+                      Conversion Analytics
+                    </button>
+                  </div>
+                </div>
+
+                {visitsSubTab === 'pipeline' ? (
+                  /* SUBTAB 1: LISTINGS PIPELINES */
+                  visits.length === 0 ? (
+                    <div className="text-center py-12 text-xs text-slate-400">
+                      No client visit requests scheduled yet.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-6">
+                      {visits.map(v => {
+                        // Calculate active steps in visual pipeline
+                        const stepScheduled = true;
+                        const stepApproved = v.status === 'approved' || v.status === 'completed';
+                        const stepCompleted = v.status === 'completed';
+                        const stepInterested = v.interest && ['very_interested', 'interested'].includes(v.interest.interestLevel);
+                        const stepPurchasedRequested = v.purchaseRequest && v.purchaseRequest.decision === 'yes_purchase';
+                        const stepSold = v.transaction || v.property?.status === 'sold';
+
+                        const steps = [
+                          { label: 'Visit Scheduled', active: stepScheduled },
+                          { label: 'Visit Approved', active: stepApproved },
+                          { label: 'Visit Completed', active: stepCompleted },
+                          { label: 'Interested', active: stepInterested },
+                          { label: 'Purchase Request', active: stepPurchasedRequested },
+                          { label: 'Property Purchased', active: stepSold }
+                        ];
+
+                        const isRescheduling = reschedulingVisitId === v._id;
+
+                        return (
+                          <div key={v._id} className="p-5 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col gap-4">
+                            
+                            {/* Top Info Header */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                              <div>
+                                <h4 className="font-bold text-sm sm:text-base text-slate-800 dark:text-slate-200">
+                                  {v.property?.title}
+                                </h4>
+                                <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-4">
+                                  <span>📅 Date: {new Date(v.visitDate).toDateString()}</span>
+                                  <span>⏰ Time: {v.visitTime}</span>
+                                  <span>👤 Buyer: <span className="font-semibold text-slate-600 dark:text-slate-300">{v.buyer?.name}</span> ({v.buyer?.email})</span>
+                                </div>
+                                {v.notes && (
+                                  <p className="text-xs text-slate-500 mt-2 bg-slate-100/30 dark:bg-slate-900/30 p-2 rounded-lg italic">
+                                    Notes: "{v.notes}"
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex flex-wrap gap-2 self-end sm:self-center">
+                                {v.status === 'pending' && !isRescheduling && (
+                                  <>
+                                    <button 
+                                      onClick={() => {
+                                        setReschedulingVisitId(v._id);
+                                        setNewVisitDate(new Date(v.visitDate).toISOString().split('T')[0]);
+                                        setNewVisitTime(v.visitTime);
+                                      }}
+                                      className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
+                                    >
+                                      Reschedule
+                                    </button>
+                                    <button 
+                                      onClick={() => handleVisitStatus(v._id, 'rejected')}
+                                      className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                                    >
+                                      <X size={12} /> Reject
+                                    </button>
+                                    <button 
+                                      onClick={() => handleVisitStatus(v._id, 'approved')}
+                                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                                    >
+                                      <Check size={12} /> Approve
+                                    </button>
+                                  </>
+                                )}
+
+                                {v.status === 'approved' && (
+                                  <button
+                                    onClick={() => handleCompleteVisit(v._id)}
+                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1 transition-colors"
+                                  >
+                                    <Check size={12} /> Mark Completed
+                                  </button>
+                                )}
+
+                                {v.status === 'completed' && stepPurchasedRequested && !stepSold && (
+                                  <button
+                                    onClick={() => handleSellProperty(v._id)}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-1"
+                                  >
+                                    🤝 Confirm Property Sold
+                                  </button>
+                                )}
+
+                                {v.status !== 'pending' && !stepPurchasedRequested && (
+                                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    v.status === 'completed'
+                                      ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                      : 'bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400'
+                                  }`}>
+                                    {v.status}
+                                  </span>
+                                )}
+
+                                {v.status === 'completed' && stepSold && (
+                                  <span className="px-3 py-1 bg-red-600 text-white rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                    SOLD
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Rescheduling Input Fields */}
+                            {isRescheduling && (
+                              <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl flex flex-wrap items-center gap-3 mt-1">
+                                <span className="text-xs text-slate-500 font-bold uppercase">Reschedule Request:</span>
+                                <input
+                                  type="date"
+                                  value={newVisitDate}
+                                  onChange={(e) => setNewVisitDate(e.target.value)}
+                                  className="premium-input max-w-[150px] text-xs py-1"
+                                />
+                                <input
+                                  type="text"
+                                  value={newVisitTime}
+                                  onChange={(e) => setNewVisitTime(e.target.value)}
+                                  className="premium-input max-w-[120px] text-xs py-1"
+                                  placeholder="e.g. 10:00 AM"
+                                />
+                                <button
+                                  onClick={() => handleVisitStatus(v._id, 'pending', newVisitDate, newVisitTime)}
+                                  className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-semibold"
+                                >
+                                  Save Reschedule
+                                </button>
+                                <button
+                                  onClick={() => setReschedulingVisitId(null)}
+                                  className="px-3 py-1 bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Section 8: Visual Pipeline View */}
+                            <div className="border-t border-slate-200/20 pt-4 mt-2">
+                              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Buyer Lifecycle Stage</p>
+                              
+                              {/* Horizontal steps line */}
+                              <div className="grid grid-cols-6 gap-2 text-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                {steps.map((st, sIdx) => (
+                                  <div key={st.label} className="flex flex-col items-center gap-2">
+                                    {/* Circle node indicator */}
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                                      st.active 
+                                        ? 'bg-emerald-500 text-white shadow-xs' 
+                                        : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                                    }`}>
+                                      {st.active ? <Check size={12} /> : sIdx + 1}
+                                    </div>
+                                    <span className={st.active ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400'}>
+                                      {st.label}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  /* SUBTAB 2: CONVERSION BREAKDOWN & BUYER DETAILS */
+                  stats.length === 0 ? (
+                    <div className="text-center py-12 text-xs text-slate-400">
+                      No conversion statistics available. Need scheduled visit interactions.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-6">
+                      {stats.map(item => (
+                        <div key={item.id} className="p-5 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col gap-4">
+                          {/* Property Identity header */}
+                          <div className="flex justify-between items-center border-b border-slate-200/20 pb-3">
+                            <div>
+                              <h3 className="font-extrabold text-sm sm:text-base text-slate-800 dark:text-slate-200">{item.title}</h3>
+                              <p className="text-[10px] text-slate-400 capitalize mt-0.5">{item.city} | Price: ₹{(item.price / 100000).toFixed(0)} Lakh</p>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                              item.status === 'sold' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </div>
+
+                          {/* Numeric metrics metrics grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/10 text-center">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Visits</span>
+                              <span className="text-lg font-black text-slate-700 dark:text-slate-300 mt-1 block">{item.total}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/10 text-center">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approved Visits</span>
+                              <span className="text-lg font-black text-slate-700 dark:text-slate-300 mt-1 block">{item.approved}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/10 text-center">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Visits</span>
+                              <span className="text-lg font-black text-slate-700 dark:text-slate-300 mt-1 block">{item.completed}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/10 text-center">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Interested Buyers</span>
+                              <span className="text-lg font-black text-indigo-500 mt-1 block">{item.interested}</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/10 text-center">
+                              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Purchase Requests</span>
+                              <span className="text-lg font-black text-emerald-500 mt-1 block">{item.purchaseRequests}</span>
+                            </div>
+                          </div>
+
+                          {/* Section 10: Buyer details directories */}
+                          <div className="bg-white dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/20 mt-2 flex flex-col gap-3">
+                            <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Buyer Conversion Log Directory</h4>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                              {/* scheduled */}
+                              <div>
+                                <span className="font-bold text-slate-500">Scheduled Visit ({item.scheduledBuyers.length})</span>
+                                <ul className="mt-1 list-disc pl-4 text-slate-400 flex flex-col gap-0.5">
+                                  {item.scheduledBuyers.map(b => <li key={b.id}>{b.name}</li>)}
+                                  {item.scheduledBuyers.length === 0 && <li>None</li>}
+                                </ul>
+                              </div>
+                              {/* attended */}
+                              <div>
+                                <span className="font-bold text-slate-500">Attended Tour ({item.attendedBuyers.length})</span>
+                                <ul className="mt-1 list-disc pl-4 text-slate-400 flex flex-col gap-0.5">
+                                  {item.attendedBuyers.map(b => <li key={b.id}>{b.name}</li>)}
+                                  {item.attendedBuyers.length === 0 && <li>None</li>}
+                                </ul>
+                              </div>
+                              {/* interested */}
+                              <div>
+                                <span className="font-bold text-slate-500">Expressed Interest ({item.interestedBuyers.length})</span>
+                                <ul className="mt-1 list-disc pl-4 text-slate-400 flex flex-col gap-0.5">
+                                  {item.interestedBuyers.map(b => <li key={b.id}>{b.name}</li>)}
+                                  {item.interestedBuyers.length === 0 && <li>None</li>}
+                                </ul>
+                              </div>
+                              {/* purchase requests */}
+                              <div>
+                                <span className="font-bold text-slate-500">Purchase Intent ({item.purchaseIntentBuyers.length})</span>
+                                <ul className="mt-1 list-disc pl-4 text-slate-400 flex flex-col gap-0.5">
+                                  {item.purchaseIntentBuyers.map(b => <li key={b.id}>{b.name}</li>)}
+                                  {item.purchaseIntentBuyers.length === 0 && <li>None</li>}
+                                </ul>
+                              </div>
+                              {/* finally purchased */}
+                              <div>
+                                <span className="font-bold text-emerald-600">Finally Purchased ({item.finalPurchasedBuyers.length})</span>
+                                <ul className="mt-1 list-disc pl-4 text-emerald-500/80 font-semibold flex flex-col gap-0.5">
+                                  {item.finalPurchasedBuyers.map(b => <li key={b.id}>{b.name}</li>)}
+                                  {item.finalPurchasedBuyers.length === 0 && <li>None</li>}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+
+              </div>
+            );
+          })()}
 
           {/* TAB 5: AI DESCRIPTION GENERATOR */}
           {activeTab === 'ai-desc-gen' && (
@@ -949,25 +1719,50 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
               
               {/* Dashboard Metric Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="glass-card p-5 text-center">
+                <div className="glass-card p-5 text-center bg-white dark:bg-slate-900/60 shadow-xs border border-slate-200/10">
                   <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl w-fit mx-auto mb-3"><Users size={20} /></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Users</span>
                   <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block">{adminMetrics.totalUsers}</span>
                 </div>
-                <div className="glass-card p-5 text-center">
+                <div className="glass-card p-5 text-center bg-white dark:bg-slate-900/60 shadow-xs border border-slate-200/10">
                   <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl w-fit mx-auto mb-3"><Building size={20} /></div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Active listings</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block">{adminMetrics.activeListings}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Total Listings</span>
+                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block">{adminMetrics.totalProperties}</span>
                 </div>
-                <div className="glass-card p-5 text-center">
-                  <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl w-fit mx-auto mb-3"><Calendar size={20} /></div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Booked visits</span>
-                  <span className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 block">{adminMetrics.totalBookings}</span>
+                <div className="glass-card p-5 text-center bg-white dark:bg-slate-900/60 shadow-xs border border-slate-200/10">
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-2xl w-fit mx-auto mb-3"><ShieldAlert size={20} /></div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Risk Alerts</span>
+                  <span className="text-2xl font-black text-amber-500 mt-1 block">{adminMetrics.riskAlerts || 0}</span>
                 </div>
-                <div className="glass-card p-5 text-center">
+                <div className="glass-card p-5 text-center bg-white dark:bg-slate-900/60 shadow-xs border border-slate-200/10">
                   <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-2xl w-fit mx-auto mb-3"><DollarSign size={20} /></div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Platform Revenue</span>
-                  <span className="text-2xl font-black text-emerald-500 mt-1 block">₹{(adminMetrics.platformRevenue / 100000).toFixed(1)} L</span>
+                  <span className="text-2xl font-black text-emerald-500 mt-1 block">₹{(adminMetrics.platformRevenue / 100000).toFixed(2)} L</span>
+                </div>
+              </div>
+
+              {/* Extra Analytics cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="glass-card p-4 flex justify-between items-center bg-white/60 dark:bg-slate-900/40 border border-slate-200/10">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pending Verifications</span>
+                    <span className="text-lg font-black text-slate-800 dark:text-slate-100 block mt-1">{adminMetrics.pendingVerifications || 0}</span>
+                  </div>
+                  <span className="text-xs text-indigo-500 font-semibold bg-indigo-50 dark:bg-indigo-950/45 px-2 py-1 rounded-lg">Queue</span>
+                </div>
+                <div className="glass-card p-4 flex justify-between items-center bg-white/60 dark:bg-slate-900/40 border border-slate-200/10">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Flagged Accounts</span>
+                    <span className="text-lg font-black text-red-500 block mt-1">{adminMetrics.flaggedAccounts || 0}</span>
+                  </div>
+                  <span className="text-xs text-red-500 font-semibold bg-red-50 dark:bg-red-950/45 px-2 py-1 rounded-lg">High Risk</span>
+                </div>
+                <div className="glass-card p-4 flex justify-between items-center bg-white/60 dark:bg-slate-900/40 border border-slate-200/10">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Completed Transactions</span>
+                    <span className="text-lg font-black text-emerald-500 block mt-1">{adminMetrics.propertyTransactions || 0}</span>
+                  </div>
+                  <span className="text-xs text-emerald-500 font-semibold bg-emerald-50 dark:bg-emerald-950/45 px-2 py-1 rounded-lg">Sales Ledger</span>
                 </div>
               </div>
 
@@ -1001,45 +1796,81 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                 <Users /> Moderate System Accounts
               </h2>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left border-collapse min-w-[500px]">
+                <table className="w-full text-xs text-left border-collapse min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
                       <th className="p-3">User Profile</th>
                       <th className="p-3">Role</th>
-                      <th className="p-3">Agent License</th>
-                      <th className="p-3">Verify Agent</th>
-                      <th className="p-3 text-right">Actions</th>
+                      <th className="p-3">Risk score</th>
+                      <th className="p-3">Verification files</th>
+                      <th className="p-3">Identity status</th>
+                      <th className="p-3 text-right">Moderation Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {adminUsers.map(u => (
-                      <tr key={u._id} className="border-b border-slate-100/50 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                      <tr key={u._id} className={`border-b border-slate-100/50 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/10 ${u.isSuspended ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
                         <td className="p-3 flex items-center gap-2">
                           <img src={u.avatar} className="w-8 h-8 rounded-full object-cover" />
                           <div>
-                            <div className="font-bold">{u.name}</div>
+                            <div className="font-bold flex items-center gap-1">
+                              {u.name}
+                              {u.isSuspended && <span className="bg-red-500 text-white text-[8px] px-1 rounded uppercase">Suspended</span>}
+                            </div>
                             <div className="text-slate-400">{u.email}</div>
                           </div>
                         </td>
                         <td className="p-3 capitalize font-semibold">{u.role}</td>
-                        <td className="p-3">{u.agentLicense || 'N/A'}</td>
+                        <td className="p-3 font-bold">
+                          <span className={u.riskScore > 50 ? 'text-red-500' : u.riskScore > 20 ? 'text-amber-500' : 'text-emerald-500'}>
+                            {u.riskScore || 15}/100
+                          </span>
+                          <span className="block text-[10px] text-slate-400 font-medium mt-1">
+                            Confidence: {u.verificationConfidenceScore !== undefined ? u.verificationConfidenceScore : 20}%
+                          </span>
+                        </td>
                         <td className="p-3">
-                          {u.role === 'agent' ? (
-                            u.isVerifiedAgent ? (
-                              <span className="text-emerald-500 font-bold">✓ Verified</span>
-                            ) : (
-                              <button 
-                                onClick={() => handleAdminVerifyUser(u._id, true)}
-                                className="px-2 py-1 bg-amber-500 text-white rounded text-[10px] font-bold"
-                              >
-                                Approve License
-                              </button>
-                            )
+                          {u.verificationDocuments?.aadhaarPan ? (
+                            <div className="flex flex-col gap-1 text-[10px]">
+                              <a href={u.verificationDocuments.aadhaarPan} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">📄 PAN/Aadhaar</a>
+                              {u.verificationDocuments.ownershipDoc && <a href={u.verificationDocuments.ownershipDoc} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">📄 Land Title</a>}
+                            </div>
                           ) : (
-                            <span className="text-slate-400">N/A</span>
+                            <span className="text-slate-400 italic">No files uploaded</span>
                           )}
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="p-3 font-semibold">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            u.verificationStatus === 'verified' ? 'bg-emerald-100 text-emerald-700' : u.verificationStatus === 'under_review' ? 'bg-indigo-100 text-indigo-700 animate-pulse' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {u.verificationStatus || 'pending'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right flex items-center justify-end gap-1.5 pt-4">
+                          {u.verificationStatus === 'under_review' && (
+                            <>
+                              <button 
+                                onClick={() => handleAdminVerifyUser(u._id, false)}
+                                className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded font-bold text-[9px]"
+                              >
+                                Reject Docs
+                              </button>
+                              <button 
+                                onClick={() => handleAdminVerifyUser(u._id, true)}
+                                className="px-2 py-1 bg-emerald-600 text-white hover:bg-emerald-500 rounded font-bold text-[9px]"
+                              >
+                                Verify Identity
+                              </button>
+                            </>
+                          )}
+                          <button 
+                            onClick={() => handleAdminSuspendUser(u._id)}
+                            className={`px-2 py-1 rounded font-bold text-[9px] ${
+                              u.isSuspended ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                            }`}
+                          >
+                            {u.isSuspended ? 'Unsuspend' : 'Suspend Account'}
+                          </button>
                           <button 
                             onClick={() => handleAdminDeleteUser(u._id)}
                             className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg"
@@ -1063,33 +1894,74 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                 <Building /> Moderate Listings Queue
               </h2>
               <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left border-collapse min-w-[600px]">
+                <table className="w-full text-xs text-left border-collapse min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 font-bold uppercase tracking-wider">
                       <th className="p-3">Property Listing</th>
                       <th className="p-3">Price</th>
+                      <th className="p-3">Risk score</th>
+                      <th className="p-3">Property verification files</th>
                       <th className="p-3">Owner Seller</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3 text-right">Moderate Status</th>
+                      <th className="p-3">Verify Status</th>
+                      <th className="p-3 text-right">Moderation Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {adminListings.map(p => (
                       <tr key={p._id} className="border-b border-slate-100/50 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
                         <td className="p-3 flex items-center gap-2">
-                          <img src={p.images[0]} className="w-10 h-8 rounded-lg object-cover" />
+                          <img src={p.images?.[0] || 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=120&h=80&q=80'} className="w-10 h-8 rounded-lg object-cover" />
                           <div className="max-w-[150px] truncate font-bold">{p.title}</div>
                         </td>
                         <td className="p-3 font-semibold text-indigo-500">₹{(p.price / 100000).toFixed(0)} L</td>
+                        <td className="p-3 font-bold text-slate-700 dark:text-slate-300">
+                          <div>{p.riskScore || 10}/100</div>
+                          <div className="text-[10px] text-slate-400 font-medium mt-1">
+                            Confidence: {p.verificationConfidenceScore !== undefined ? p.verificationConfidenceScore : 20}%
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          {p.verificationDocuments?.ownershipDoc ? (
+                            <div className="flex flex-col gap-1 text-[10px]">
+                              <a href={p.verificationDocuments.ownershipDoc} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">📄 Ownership Deed</a>
+                              {p.verificationDocuments.taxReceipt && <a href={p.verificationDocuments.taxReceipt} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">📄 Tax Receipt</a>}
+                              {p.verificationDocuments.utilityBill && <a href={p.verificationDocuments.utilityBill} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">📄 Utility Bill</a>}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 italic">No files</span>
+                          )}
+                        </td>
                         <td className="p-3">{p.seller?.name || 'Deleted'}</td>
-                        <td className="p-3 capitalize font-semibold">{p.status}</td>
+                        <td className="p-3 capitalize font-semibold">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            p.verificationStatus === 'verified' ? 'bg-emerald-100 text-emerald-700' : p.verificationStatus === 'under_review' ? 'bg-indigo-100 text-indigo-700 animate-pulse' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {p.verificationStatus || 'pending'}
+                          </span>
+                        </td>
                         <td className="p-3 text-right flex items-center justify-end gap-1.5 pt-4">
+                          {p.verificationStatus === 'under_review' && (
+                            <>
+                              <button 
+                                onClick={() => handleAdminVerifyProperty(p._id, false)}
+                                className="px-2 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded font-bold text-[9px]"
+                              >
+                                Reject Docs
+                              </button>
+                              <button 
+                                onClick={() => handleAdminVerifyProperty(p._id, true)}
+                                className="px-2 py-1 bg-emerald-600 text-white hover:bg-emerald-505 rounded font-bold text-[9px]"
+                              >
+                                Verify Property
+                              </button>
+                            </>
+                          )}
                           {p.status === 'under_review' && (
                             <button 
                               onClick={() => handleAdminListingStatus(p._id, 'available')}
                               className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-[9px] uppercase"
                             >
-                              Approve
+                              Approve Listing
                             </button>
                           )}
                           {p.status === 'available' && (
@@ -1100,6 +1972,13 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
                               Mark Sold
                             </button>
                           )}
+                          <button 
+                            onClick={() => handleDeleteListing(p._id)}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg"
+                            title="Remove listing"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1109,50 +1988,261 @@ export default function Dashboard({ onViewProperty, onEditProperty, setCurrentTa
             </div>
           )}
 
-          {/* TAB 10: USER PROFILE DETAILS */}
-          {activeTab === 'profile' && (
+          {/* TAB: NOTIFICATION CENTER */}
+          {activeTab === 'notifications' && (
             <div className="glass-card p-6 rounded-3xl">
-              <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
-                <UserCheck /> Update My Profile Information
-              </h2>
-              {profileSuccess && (
-                <div className="p-3 bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 text-xs rounded-xl mb-4">
-                  {profileSuccess}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <ShieldAlert /> Notification Center
+                </h2>
+                <button
+                  onClick={markAllNotificationsRead}
+                  className="px-3 py-1 bg-indigo-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-lg text-xs font-bold"
+                >
+                  Mark All Read
+                </button>
+              </div>
+
+              {notifications.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-400">
+                  No notifications yet. You will receive alerts for visits, approvals, and sales.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {notifications.map(n => (
+                    <div 
+                      key={n._id} 
+                      onClick={() => !n.isRead && markNotificationRead(n._id)}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                        n.isRead 
+                          ? 'bg-slate-50/50 dark:bg-slate-900/10 border-slate-100 dark:border-slate-800 text-slate-500' 
+                          : 'bg-indigo-50/20 dark:bg-indigo-950/15 border-indigo-200/30 text-slate-800 dark:text-slate-200 shadow-xs'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm">{n.title}</h4>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">{n.message}</p>
+                          <span className="block text-[10px] text-slate-400 mt-2 font-medium">
+                            🕒 {new Date(n.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        {!n.isRead && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 flex-shrink-0 animate-pulse mt-1" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              <form onSubmit={handleProfileSubmit} className="flex flex-col gap-4 max-w-md">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Display Name</label>
-                  <input 
-                    type="text" 
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                    required
-                    className="premium-input"
-                  />
+            </div>
+          )}
+
+          {/* TAB: ADMIN FRAUD CONTROL CENTER */}
+          {activeTab === 'admin-fraud' && (
+            <div className="glass-card p-6 rounded-3xl">
+              <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
+                <ShieldAlert className="text-red-500" /> Fraud Risk & Security Alert Center
+              </h2>
+
+              {fraudAlerts.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-400">
+                  No security alerts or anomalous activity flags at this time.
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Avatar image URL</label>
-                  <input 
-                    type="text" 
-                    value={profileAvatar}
-                    onChange={(e) => setProfileAvatar(e.target.value)}
-                    className="premium-input"
-                  />
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {fraudAlerts.map(alert => (
+                    <div key={alert._id} className="p-4 bg-slate-50 dark:bg-slate-950/20 border border-slate-200/35 dark:border-slate-800/30 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            alert.riskScore > 60 ? 'bg-red-100 text-red-700' : alert.riskScore > 30 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            Score: {alert.riskScore} ({alert.riskScore > 60 ? 'High' : alert.riskScore > 30 ? 'Medium' : 'Low'})
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{alert.triggerType}</span>
+                        </div>
+                        <h4 className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200 mt-2">
+                          {alert.description}
+                        </h4>
+                        <div className="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-4">
+                          <span>Target: {alert.targetType.toUpperCase()}</span>
+                          {alert.user && <span>User: {alert.user.name} ({alert.user.email})</span>}
+                          {alert.property && <span>Property: {alert.property.title}</span>}
+                          <span>Alert Date: {new Date(alert.createdAt).toDateString()}</span>
+                        </div>
+                      </div>
+
+                      {alert.status === 'active' ? (
+                        <button
+                          onClick={() => handleResolveFraudAlert(alert._id)}
+                          className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg text-xs font-semibold"
+                        >
+                          Resolve Alert
+                        </button>
+                      ) : (
+                        <span className="text-emerald-500 font-bold text-xs">✓ Resolved</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {user?.role === 'agent' && (
+              )}
+            </div>
+          )}
+
+          {/* TAB 10: USER PROFILE DETAILS */}
+          {activeTab === 'profile' && (
+            <div className="glass-card p-6 rounded-3xl grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Left Column: Update Info Form */}
+              <div>
+                <h2 className="font-extrabold text-lg text-slate-800 dark:text-slate-100 mb-6 flex items-center gap-2">
+                  <UserCheck /> Profile Details
+                </h2>
+                {profileSuccess && (
+                  <div className="p-3 bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 text-xs rounded-xl mb-4 font-semibold">
+                    {profileSuccess}
+                  </div>
+                )}
+                <form onSubmit={handleProfileSubmit} className="flex flex-col gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Agent RERA License ID</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Display Name</label>
                     <input 
                       type="text" 
-                      value={profileLicense}
-                      onChange={(e) => setProfileLicense(e.target.value)}
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      required
                       className="premium-input"
                     />
                   </div>
-                )}
-                <button type="submit" className="btn-primary py-3">Save Profile Updates</button>
-              </form>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Avatar image URL</label>
+                    <input 
+                      type="text" 
+                      value={profileAvatar}
+                      onChange={(e) => setProfileAvatar(e.target.value)}
+                      className="premium-input"
+                    />
+                  </div>
+                  {user?.role === 'agent' && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Agent RERA License ID</label>
+                      <input 
+                        type="text" 
+                        value={profileLicense}
+                        onChange={(e) => setProfileLicense(e.target.value)}
+                        className="premium-input"
+                      />
+                    </div>
+                  )}
+                  <button type="submit" className="btn-primary py-3 cursor-pointer">Save Profile Updates</button>
+                </form>
+              </div>
+
+              {/* Right Column: Seller Trust & Document Verification */}
+              {['seller', 'agent'].includes(user?.role) && (
+                <div className="bg-slate-50 dark:bg-slate-900/40 p-6 rounded-2xl border border-slate-200/20 flex flex-col gap-4">
+                  <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200 uppercase tracking-wider border-b border-slate-200/20 pb-3 flex items-center gap-1.5">
+                    <ShieldCheck className="text-indigo-500" size={16} /> Trust & Verification Hub
+                  </h3>
+
+                  <div className="flex justify-between items-center bg-white dark:bg-slate-950/40 p-3 rounded-xl border border-slate-200/10">
+                    <div>
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account Status</span>
+                      <span className={`text-xs font-extrabold capitalize block mt-1 ${
+                        user?.verificationStatus === 'verified' 
+                          ? 'text-emerald-500' 
+                          : user?.verificationStatus === 'under_review'
+                          ? 'text-indigo-500'
+                          : 'text-amber-500'
+                      }`}>
+                        {user?.verificationStatus === 'verified' ? '✓ Verified Seller' : user?.verificationStatus === 'under_review' ? '⏳ Under Review' : '⚠ Action Required (Pending)'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fraud Risk Score</span>
+                      <span className="text-xs font-black text-slate-700 dark:text-slate-300 block mt-1">{user?.riskScore || 15}/100</span>
+                    </div>
+                  </div>
+
+                  {userDocSuccess && (
+                    <div className="p-3 bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 text-xs rounded-xl font-semibold">
+                      {userDocSuccess}
+                    </div>
+                  )}
+
+                  {user?.verificationStatus !== 'verified' && (
+                    <form onSubmit={handleUserDocsSubmit} className="flex flex-col gap-3 text-xs">
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                        Upload identity files to lower your risk profile and gain the **Verified Seller Badge** visible to all buyers.
+                      </p>
+                      
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">PAN or Aadhaar Card</label>
+                        <input
+                          type="file"
+                          required
+                          onChange={(e) => setUserAadhaarFile(e.target.files[0])}
+                          className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950/30 dark:file:text-indigo-400 file:cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Land Deed / Ownership Certificate</label>
+                        <input
+                          type="file"
+                          onChange={(e) => setUserOwnershipFile(e.target.files[0])}
+                          className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950/30 dark:file:text-indigo-400 file:cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Property Tax Receipt</label>
+                          <input
+                            type="file"
+                            onChange={(e) => setUserTaxFile(e.target.files[0])}
+                            className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 file:cursor-pointer"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Electricity/Utility Bill</label>
+                          <input
+                            type="file"
+                            onChange={(e) => setUserUtilityFile(e.target.files[0])}
+                            className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-indigo-50 file:text-indigo-700 file:cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={userDocLoading}
+                        className="mt-2 w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl font-bold cursor-pointer transition-colors"
+                      >
+                        {userDocLoading ? 'Uploading Files...' : 'Submit Verification Docs'}
+                      </button>
+                    </form>
+                  )}
+
+                  {user?.verificationStatus === 'verified' && (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-center flex flex-col items-center gap-1 mt-2">
+                      <ShieldCheck className="text-emerald-500" size={32} />
+                      <span className="text-xs font-bold text-emerald-800 dark:text-emerald-400">✓ Account Verified</span>
+                      <p className="text-[10px] text-slate-400 mt-1">Your identity documents are verified. Risk score reduced successfully.</p>
+                    </div>
+                  )}
+
+                  {user?.verificationStatus === 'under_review' && (
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900/30 rounded-xl text-center flex flex-col items-center gap-1 mt-2">
+                      <span className="text-xs font-bold text-indigo-800 dark:text-indigo-400 animate-pulse">⏳ Verification Pending Review</span>
+                      <p className="text-[10px] text-slate-400 mt-1">Admin is reviewing your credentials. You will receive notification status updates shortly.</p>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
             </div>
           )}
 

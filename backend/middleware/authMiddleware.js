@@ -34,6 +34,13 @@ const protect = async (req, res, next) => {
       });
     }
 
+    if (req.user.isSuspended) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been suspended by the platform administrator. Access denied.',
+      });
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({

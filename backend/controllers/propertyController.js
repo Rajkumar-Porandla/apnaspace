@@ -415,3 +415,72 @@ exports.deleteProperty = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Upload property verification documents
+// @route   PUT /api/properties/:id/verify-docs
+// @access  Private (Seller, Agent, Admin)
+exports.uploadPropertyDocs = async (req, res, next) => {
+  try {
+    const { uploadToCloudinary } = require('../config/cloudinary');
+    const property = await Property.findById(req.params.id);
+
+    if (!property) {
+      return res.status(404).json({ success: false, message: 'Property not found.' });
+    }
+
+    if (property.seller.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this property.' });
+    }
+
+    const docs = {
+      ownershipDoc: property.verificationDocuments?.ownershipDoc || '',
+      taxReceipt: property.verificationDocuments?.taxReceipt || '',
+      utilityBill: property.verificationDocuments?.utilityBill || ''
+    };
+
+    if (req.files) {
+      if (req.files.ownershipDoc) {
+        const uploaded = await uploadToCloudinary(req.files.ownershipDoc[0].buffer);
+        docs.ownershipDoc = uploaded.secure_url;
+      }
+      if (req.files.taxReceipt) {
+        const uploaded = await uploadToCloudinary(req.files.taxReceipt[0].buffer);
+        docs.taxReceipt = uploaded.secure_url;
+      }
+      if (req.files.utilityBill) {
+        const uploaded = await uploadToCloudinary(req.files.utilityBill[0].buffer);
+        docs.utilityBill = uploaded.secure_url;
+      }
+    }
+
+    property.verificationDocuments = docs;
+    property.verificationStatus = 'under_review';
+    const docCount = Object.values(docs).filter(val => !!val).length;
+    property.verificationConfidenceScore = 30 + docCount * 20; // 30 base + up to 60 = 90% confidence under review
+    property.riskScore = Math.max(5, property.riskScore - 3);
+    await property.save();
+
+    // Create Notification for admin
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+    const AdminUsers = await User.find({ role: 'admin' });
+    for (const admin of AdminUsers) {
+      await Notification.create({
+        recipient: admin._id,
+        sender: req.user.id,
+        type: 'verification_request',
+        title: 'New Property Verification Request',
+        message: `Verification documents uploaded for property "${property.title}".`,
+        relatedProperty: property._id
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Property verification documents uploaded successfully. Status: Under Review.',
+      property
+    });
+  } catch (error) {
+    next(error);
+  }
+};

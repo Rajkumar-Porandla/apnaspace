@@ -6,6 +6,7 @@ const {
   createProperty,
   updateProperty,
   deleteProperty,
+  uploadPropertyDocs
 } = require('../controllers/propertyController');
 
 const router = express.Router();
@@ -39,6 +40,18 @@ router.delete(
   protect,
   authorize('seller', 'agent', 'admin'),
   deleteProperty
+);
+
+router.put(
+  '/:id/verify-docs',
+  protect,
+  authorize('seller', 'agent', 'admin'),
+  upload.fields([
+    { name: 'ownershipDoc', maxCount: 1 },
+    { name: 'taxReceipt', maxCount: 1 },
+    { name: 'utilityBill', maxCount: 1 }
+  ]),
+  uploadPropertyDocs
 );
 
 module.exports = router;

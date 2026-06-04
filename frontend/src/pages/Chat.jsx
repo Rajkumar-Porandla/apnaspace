@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
-import { Send, Image, Bot, User, CheckCheck, Smile, Paperclip } from 'lucide-react';
+import { Send, Image, Bot, User, CheckCheck, Smile, Paperclip, MessageSquare } from 'lucide-react';
 
 export default function Chat() {
   const { user } = useAuth();

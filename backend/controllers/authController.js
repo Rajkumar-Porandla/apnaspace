@@ -285,3 +285,70 @@ exports.toggleSaveProperty = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Upload User verification documents
+// @route   PUT /api/auth/verify-docs
+// @access  Private
+exports.uploadUserDocs = async (req, res, next) => {
+  try {
+    const { uploadToCloudinary } = require('../config/cloudinary');
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const docs = {
+      aadhaarPan: user.verificationDocuments?.aadhaarPan || '',
+      ownershipDoc: user.verificationDocuments?.ownershipDoc || '',
+      taxReceipt: user.verificationDocuments?.taxReceipt || '',
+      utilityBill: user.verificationDocuments?.utilityBill || ''
+    };
+
+    if (req.files) {
+      if (req.files.aadhaarPan) {
+        const uploaded = await uploadToCloudinary(req.files.aadhaarPan[0].buffer);
+        docs.aadhaarPan = uploaded.secure_url;
+      }
+      if (req.files.ownershipDoc) {
+        const uploaded = await uploadToCloudinary(req.files.ownershipDoc[0].buffer);
+        docs.ownershipDoc = uploaded.secure_url;
+      }
+      if (req.files.taxReceipt) {
+        const uploaded = await uploadToCloudinary(req.files.taxReceipt[0].buffer);
+        docs.taxReceipt = uploaded.secure_url;
+      }
+      if (req.files.utilityBill) {
+        const uploaded = await uploadToCloudinary(req.files.utilityBill[0].buffer);
+        docs.utilityBill = uploaded.secure_url;
+      }
+    }
+
+    user.verificationDocuments = docs;
+    user.verificationStatus = 'under_review';
+    const docCount = Object.values(docs).filter(val => !!val).length;
+    user.verificationConfidenceScore = 30 + docCount * 15; // 30 base + up to 60 = 90% confidence under review
+    user.riskScore = Math.max(5, user.riskScore - 5);
+    await user.save();
+
+    // Create Notification for admin
+    const Notification = require('../models/Notification');
+    const AdminUsers = await User.find({ role: 'admin' });
+    for (const admin of AdminUsers) {
+      await Notification.create({
+        recipient: admin._id,
+        sender: user._id,
+        type: 'verification_request',
+        title: 'New User Verification Request',
+        message: `${user.name} has uploaded identity documents for verification.`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification documents uploaded successfully. Under review.',
+      user
+    });
+  } catch (error) {
+    next(error);
+  }
+};

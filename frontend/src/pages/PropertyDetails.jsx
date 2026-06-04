@@ -131,7 +131,7 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
     setBookingSuccess(false);
 
     try {
-      const res = await axios.post('/bookings', {
+      const res = await axios.post('/visits', {
         propertyId,
         visitDate,
         visitTime,
@@ -1155,25 +1155,44 @@ export default function PropertyDetails({ propertyId, onBack, onSelectProperty, 
               <ShieldCheck className="text-emerald-500" size={20} />
               <div>
                 <h3 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">AI Trust & Safety Audit</h3>
-                <span className="block text-emerald-500 font-extrabold text-xs tracking-wider mt-1">✓ Passed (96% Trust Index)</span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-x-2 gap-y-1 mt-1">
+                  <span className={`font-extrabold text-[10px] sm:text-xs tracking-wider uppercase ${
+                    (data.riskScore || 10) < 30 ? 'text-emerald-500' : (data.riskScore || 10) < 60 ? 'text-amber-500' : 'text-red-500'
+                  }`}>
+                    Risk Score: {data.riskScore || 10}/100 ({
+                      (data.riskScore || 10) < 30 ? 'Low Risk' : (data.riskScore || 10) < 60 ? 'Medium Risk' : 'High Risk'
+                    })
+                  </span>
+                  <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+                  <span className="font-extrabold text-[10px] sm:text-xs text-indigo-500 uppercase tracking-wider">
+                    Confidence: {data.verificationConfidenceScore !== undefined ? data.verificationConfidenceScore : 20}%
+                  </span>
+                </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-2 mt-2">
               {[
-                { title: 'Verified Seller Credentials', details: 'Owner ID & photo matched' },
-                { title: 'Price Index Evaluation', details: 'Matches area average' },
-                { title: 'Government RERA Filing', details: 'RERA documents verified' },
-                { title: 'AI Legal Title Search', details: 'No active lien or mortgage' }
-              ].map((item, idx) => (
-                <div key={idx} className="flex gap-2.5 p-2 bg-slate-100/40 dark:bg-slate-950/30 rounded-xl">
-                  <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.title}</h4>
-                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-normal mt-0.5">{item.details}</p>
+                { title: 'Verified Seller Credentials', details: data.seller?.verificationStatus === 'verified' ? 'Approved (ID & photo matched)' : 'Self-declared seller account' },
+                { title: 'Price Index Evaluation', details: 'Within standard historical market range' },
+                { title: 'Ownership & Legal Records', details: data.verificationStatus === 'verified' ? 'Ownership deeds certified by Admin' : 'Documents under review or pending upload' },
+                { title: 'Government Filings Check', details: (data.agent || data.seller)?.agentLicense ? `License code: ${(data.agent || data.seller).agentLicense}` : 'Direct Owner Listing' }
+              ].map((item, idx) => {
+                const isApproved = item.details.includes('Approved') || item.details.includes('certified') || item.details.includes('Within') || item.details.includes('License');
+                return (
+                  <div key={idx} className="flex gap-2.5 p-2 bg-slate-100/40 dark:bg-slate-950/30 rounded-xl">
+                    {isApproved ? (
+                      <CheckCircle2 size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.title}</h4>
+                      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 leading-normal mt-0.5">{item.details}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

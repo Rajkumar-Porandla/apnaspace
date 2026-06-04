@@ -34,11 +34,13 @@ if (!process.env.VERCEL) {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/bookings', require('./routes/bookings'));
+app.use('/api/visits', require('./routes/visit'));
 app.use('/api/reviews', require('./routes/reviews'));
 app.use('/api/chats', require('./routes/chats'));
 app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
