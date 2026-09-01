@@ -109,3 +109,7 @@ The seeder script pre-creates the following test accounts (password for all is `
 4. **Property Buyer**:
    - **Email**: `rahul@buyer.com`
    - **Access**: Conversational search with AI assistant, schedule property visits, save properties, add properties to comparison.
+
+
+## ♿ Accessibility & Design Tokens
+All UI components comply with WCAG 2.1 AA contrast ratios.
